@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firma Digitale</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background-color: #f0f2f5;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        .signature-pad-container {
+            position: relative;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            margin-bottom: 15px;
+            background-color: #fff;
+        }
+        #signature-pad {
+            flex: 1;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            touch-action: none;
+            background-color: #fff;
+        }
+        .button-row {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+        }
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        button i {
+            margin-right: 5px;
+        }
+        #clear-button {
+            background-color: #f44336;
+            color: white;
+            flex: 1;
+            margin-right: 10px;
+        }
+        #save-button {
+            background-color: #4CAF50;
+            color: white;
+            flex: 2;
+        }
+        #clear-button:hover {
+            background-color: #d32f2f;
+        }
+        #save-button:hover {
+            background-color: #388e3c;
+        }
+        .instruction {
+            text-align: center;
+            color: #555;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
+</head>
+<body>
+    <div class="header">
+        <h2>Firma Digitale</h2>
+    </div>
+    
+    <div class="instruction">
+        Disegna la tua firma nello spazio bianco qui sotto
+    </div>
+    
+    <div class="signature-pad-container">
+        <canvas id="signature-pad"></canvas>
+    </div>
+    
+    <div class="button-row">
+        <button id="clear-button">
+            <i>🗑️</i> Cancella
+        </button>
+        <button id="save-button">
+            <i>✅</i> Salva Firma
+        </button>
+    </div>
+
+    <script>
+        // Telegram WebApp setup
+        const tgApp = window.Telegram && window.Telegram.WebApp;
+        
+        // Resize canvas to fit container
+        function resizeCanvas() {
+            const canvas = document.getElementById('signature-pad');
+            const container = document.querySelector('.signature-pad-container');
+            
+            // Get dimensions
+            const ratio = Math.max(window.devicePixelRatio || 1, 1);
+            canvas.width = container.offsetWidth * ratio;
+            canvas.height = (container.offsetHeight || 300) * ratio; // Default height if container is not visible yet
+            canvas.style.width = `${container.offsetWidth}px`;
+            canvas.style.height = `${container.offsetHeight || 300}px`;
+            
+            // Scale
+            const ctx = canvas.getContext('2d');
+            ctx.scale(ratio, ratio);
+            
+            // If signature pad is initialized, clear and recreate
+            if (window.signaturePad) {
+                window.signaturePad.clear();
+            }
+        }
+        
+        // Initialize Signature Pad
+        function initSignaturePad() {
+            const canvas = document.getElementById('signature-pad');
+            
+            // Create signature pad
+            window.signaturePad = new SignaturePad(canvas, {
+                backgroundColor: 'rgb(255, 255, 255)',
+                penColor: 'rgb(0, 0, 0)',
+                minWidth: 1,
+                maxWidth: 3
+            });
+            
+            // Button handlers
+            document.getElementById('clear-button').addEventListener('click', function() {
+                window.signaturePad.clear();
+            });
+            
+            document.getElementById('save-button').addEventListener('click', function() {
+                if (window.signaturePad.isEmpty()) {
+                    alert('Per favore disegna la tua firma prima di salvare.');
+                    return;
+                }
+                
+                // Get signature data URL
+                const dataURL = window.signaturePad.toDataURL('image/png');
+                
+                // Send data back to Telegram
+                if (tgApp) {
+                    tgApp.sendData(dataURL);
+                    tgApp.close();
+                } else {
+                    // For testing outside Telegram
+                    console.log('Signature data:', dataURL);
+                    alert('Firma salvata! (Fuori da Telegram App)');
+                    
+                    // Show preview
+                    const img = document.createElement('img');
+                    img.src = dataURL;
+                    img.style.maxWidth = '100%';
+                    img.style.maxHeight = '200px';
+                    img.style.display = 'block';
+                    img.style.margin = '20px auto';
+                    
+                    document.body.appendChild(img);
+                }
+            });
+        }
+        
+        // Make canvas height fixed if container is not visible
+        document.querySelector('.signature-pad-container').style.height = '300px';
+        
+        // Setup
+        window.addEventListener('load', function() {
+            // Init Telegram WebApp if available
+            if (tgApp) {
+                tgApp.ready();
+                tgApp.expand();
+            }
+            
+            // Resize and init
+            resizeCanvas();
+            initSignaturePad();
+        });
+        
+        // Handle resize
+        window.addEventListener('resize', resizeCanvas);
+    </script>
+</body>
+</html>
