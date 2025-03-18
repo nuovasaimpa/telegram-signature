@@ -216,7 +216,8 @@
                 const bitmapData = generateBitmapRepresentation();
                 updateStatus(`Dimensione bitmap: ${bitmapData.length} caratteri`);
                 
-                if (tg.initDataUnsafe.query_id) {
+               if (tg.initDataUnsafe.query_id) {
+                    console.log('Query ID Telegram:', tg.initDataUnsafe.query_id);
                     tg.sendData(bitmapData);
                     updateStatus("Dati inviati! Chiusura...");
                 } else {
