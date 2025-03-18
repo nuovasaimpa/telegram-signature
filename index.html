@@ -11,20 +11,23 @@
             margin: 0;
             padding: 16px;
             touch-action: none;
+            background-color: var(--tg-theme-bg-color, #ffffff);
+            color: var(--tg-theme-text-color, #000000);
         }
         canvas {
             border: 2px solid #999;
             width: 100%;
             height: 200px;
             touch-action: none;
+            background-color: white;
         }
         button {
             display: block;
             width: 100%;
             padding: 12px;
             margin-top: 16px;
-            background: #4CAF50;
-            color: white;
+            background: var(--tg-theme-button-color, #4CAF50);
+            color: var(--tg-theme-button-text-color, white);
             border: none;
             border-radius: 4px;
             font-size: 16px;
@@ -34,6 +37,11 @@
             background: #f44336;
             margin-top: 8px;
         }
+        #status {
+            margin-top: 10px;
+            padding: 8px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -41,26 +49,44 @@
     <canvas id="signatureCanvas"></canvas>
     <button id="saveBtn">Salva Firma</button>
     <button id="clearBtn">Cancella</button>
+    <div id="status"></div>
 
     <script>
         // Inizializza Telegram WebApp
         const tg = window.Telegram.WebApp;
         tg.expand();
+        
+        // Mostra info di debug
+        const statusDiv = document.getElementById('status');
+        function updateStatus(msg) {
+            statusDiv.innerText = msg;
+            console.log(msg);
+        }
+        
+        updateStatus("WebApp inizializzata");
 
         // Canvas setup
         const canvas = document.getElementById('signatureCanvas');
         const ctx = canvas.getContext('2d');
         
         // Impostazione dimensioni canvas
-        canvas.width = canvas.offsetWidth;
-        canvas.height = canvas.offsetHeight;
-        ctx.lineWidth = 3;
-        ctx.lineCap = 'round';
-        ctx.strokeStyle = 'black';
+        function resizeCanvas() {
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = 'black';
+            updateStatus("Canvas ridimensionato: " + canvas.width + "x" + canvas.height);
+        }
+        
+        // Ridimensiona il canvas al caricamento
+        window.addEventListener('load', resizeCanvas);
         
         // Variabili per il disegno
         let isDrawing = false;
         let lastX, lastY;
+        let hasDrawn = false;
         
         // Funzioni di disegno
         function draw(e) {
@@ -91,6 +117,7 @@
             
             lastX = x;
             lastY = y;
+            hasDrawn = true;
         }
         
         function startDrawing(e) {
@@ -130,35 +157,59 @@
         // Bottone per cancellare
         document.getElementById('clearBtn').addEventListener('click', function() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            hasDrawn = false;
+            updateStatus("Canvas cancellato");
         });
         
         // Bottone per salvare
         document.getElementById('saveBtn').addEventListener('click', function() {
             // Verifica se il canvas è vuoto
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-            const isEmpty = !imageData.some(channel => channel !== 0);
-            
-            if (isEmpty) {
-                alert('Disegna prima la tua firma!');
+            if (!hasDrawn) {
+                updateStatus("Errore: Disegna prima la firma!");
                 return;
             }
             
             try {
-                // Crea data URL con qualità ridotta per diminuire dimensione
-                const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                updateStatus("Preparazione firma...");
+                
+                // Crea data URL
+                const dataUrl = canvas.toDataURL('image/png');
+                updateStatus("Firma generata. Lunghezza: " + dataUrl.length + " caratteri");
+                
+                // Verifica dimensione
+                if (dataUrl.length > 700000) {
+                    updateStatus("Errore: La firma è troppo complessa. Prova a semplificarla.");
+                    return;
+                }
                 
                 // Invia dati a Telegram
-                tg.sendData(dataUrl);
+                updateStatus("Invio dati a Telegram...");
+                tg.MainButton.setText('Invio in corso...');
+                tg.MainButton.show();
                 
-                // Mostra conferma
-                alert('Firma inviata!');
+                // Aggiungi un ritardo per evitare che l'interfaccia si blocchi
+                setTimeout(() => {
+                    try {
+                        tg.sendData(dataUrl);
+                        updateStatus("Dati inviati con successo!");
+                        
+                        // Chiudi dopo un breve ritardo
+                        setTimeout(() => {
+                            updateStatus("Chiusura webapp...");
+                            tg.close();
+                        }, 500);
+                    } catch (sendError) {
+                        updateStatus("Errore nell'invio: " + sendError.message);
+                    }
+                }, 100);
                 
-                // Chiudi dopo un secondo
-                setTimeout(() => tg.close(), 1000);
             } catch (error) {
-                alert('Errore: ' + error.message);
+                updateStatus("Errore: " + error.message);
             }
         });
+        
+        // Mostra che tutto è pronto
+        updateStatus("Webapp pronta. Disegna la tua firma.");
     </script>
 </body>
 </html>
