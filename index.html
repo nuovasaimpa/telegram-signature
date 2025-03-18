@@ -9,184 +9,108 @@
         body {
             font-family: Arial, sans-serif;
             margin: 0;
-            padding: 0;
-            background-color: var(--tg-theme-bg-color, #ffffff);
-            color: var(--tg-theme-text-color, #000000);
-            user-select: none;
-            overflow-x: hidden;
-        }
-
-        .container {
-            max-width: 100%;
-            margin: 0 auto;
             padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            background-color: #f0f0f0;
         }
-
         h1 {
-            font-size: 1.5rem;
             text-align: center;
             margin-bottom: 20px;
-            color: var(--tg-theme-text-color, #000000);
         }
-
-        .signature-area {
-            position: relative;
-            width: 100%;
-            border: 2px dashed var(--tg-theme-hint-color, #999999);
-            border-radius: 8px;
-            background-color: var(--tg-theme-secondary-bg-color, #f0f0f0);
-            margin-bottom: 20px;
-            touch-action: none;
-        }
-
-        canvas {
+        #signatureCanvas {
             width: 100%;
             height: 200px;
-            display: block;
-            touch-action: none;
+            border: 2px dashed #999;
+            background-color: white;
         }
-
-        .button-container {
-            display: flex;
-            gap: 10px;
-            width: 100%;
-            justify-content: center;
-            margin-bottom: 20px;
-        }
-
-        button {
-            padding: 10px 20px;
-            font-size: 16px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .clear-btn {
-            background-color: var(--tg-theme-secondary-bg-color, #f0f0f0);
-            color: var(--tg-theme-text-color, #000000);
-        }
-
-        .save-btn {
-            background-color: var(--tg-theme-button-color, #50a8eb);
-            color: var(--tg-theme-button-text-color, #ffffff);
-        }
-
-        .instructions {
+        .buttons {
             margin-top: 20px;
             text-align: center;
-            font-size: 14px;
-            color: var(--tg-theme-hint-color, #999999);
+        }
+        button {
+            padding: 10px 20px;
+            margin: 0 5px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        #debug {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #eee;
+            border: 1px solid #ccc;
+            max-height: 150px;
+            overflow-y: auto;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Disegna la tua firma</h1>
-        
-        <div class="signature-area">
-            <canvas id="signatureCanvas"></canvas>
-        </div>
-        
-        <div class="button-container">
-            <button class="clear-btn" id="clearButton">Cancella</button>
-            <button class="save-btn" id="saveButton">Salva firma</button>
-        </div>
-        
-        <div class="instructions">
-            <p>Usa il dito o una penna per disegnare la tua firma nel riquadro sopra.</p>
-        </div>
+    <h1>Firma Digitale</h1>
+    
+    <div id="debug">
+        <p>Log di debug:</p>
+    </div>
+    
+    <canvas id="signatureCanvas"></canvas>
+    
+    <div class="buttons">
+        <button id="clearButton">Cancella</button>
+        <button id="saveButton">Salva Firma</button>
     </div>
 
     <script>
-        // Inizializza Telegram WebApp
+        function log(message) {
+            const debugEl = document.getElementById('debug');
+            const p = document.createElement('p');
+            p.textContent = message;
+            debugEl.appendChild(p);
+            console.log(message);
+        }
+
+        // Log iniziale
+        log("Pagina caricata");
+
+        // Verifica Telegram WebApp
         let tg;
-        
-        // Verifica se l'oggetto Telegram è disponibile
         try {
             if (window.Telegram && window.Telegram.WebApp) {
                 tg = window.Telegram.WebApp;
-                tg.expand();
-                console.log("Telegram WebApp inizializzato correttamente");
-                
-                // Mostra le informazioni dell'oggetto WebApp
-                const webAppInfo = document.createElement('div');
-                webAppInfo.style.position = 'fixed';
-                webAppInfo.style.bottom = '10px';
-                webAppInfo.style.right = '10px';
-                webAppInfo.style.backgroundColor = 'rgba(0,0,0,0.7)';
-                webAppInfo.style.color = 'white';
-                webAppInfo.style.padding = '5px';
-                webAppInfo.style.borderRadius = '5px';
-                webAppInfo.style.fontSize = '10px';
-                webAppInfo.style.zIndex = '9999';
-                
-                // Aggiungiamo l'elemento alla pagina
-                document.addEventListener('DOMContentLoaded', function() {
-                    document.body.appendChild(webAppInfo);
-                    
-                    // Popola con alcune info utili
-                    const info = [
-                        `initData: ${tg.initData ? "presente" : "assente"}`,
-                        `initDataUnsafe: ${tg.initDataUnsafe ? "presente" : "assente"}`,
-                        `version: ${tg.version || "non disponibile"}`,
-                        `platform: ${tg.platform || "non disponibile"}`,
-                        `colorScheme: ${tg.colorScheme || "non disponibile"}`
-                    ];
-                    
-                    webAppInfo.textContent = info.join('\n');
-                });
+                log("Telegram WebApp trovato");
             } else {
-                console.error("Telegram WebApp non disponibile");
-                alert("ERRORE: Telegram WebApp non disponibile. Assicurati di aprire questa pagina tramite l'app Telegram.");
+                log("ERRORE: Telegram WebApp non disponibile");
             }
-        } catch (error) {
-            console.error("Errore nell'inizializzazione di Telegram WebApp:", error);
-            alert("Errore nell'inizializzazione: " + error.message);
+        } catch (e) {
+            log("Errore durante l'inizializzazione: " + e.message);
         }
 
         // Configura il canvas
         const canvas = document.getElementById('signatureCanvas');
         const ctx = canvas.getContext('2d');
+        
+        // Imposta le dimensioni reali del canvas
+        function resizeCanvas() {
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            ctx.lineWidth = 2;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = 'black';
+            log("Canvas ridimensionato");
+        }
+        
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // Variabili per il disegno
         let isDrawing = false;
         let lastX = 0;
         let lastY = 0;
-
-        // Imposta le dimensioni reali del canvas
-        function resizeCanvas() {
-            const container = canvas.parentElement;
-            const rect = container.getBoundingClientRect();
-            canvas.width = rect.width;
-            canvas.height = 200;
-            
-            // Imposta lo stile di disegno
-            ctx.lineWidth = 2;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-            ctx.strokeStyle = 'black';
-        }
-
-        // Inizializza il canvas
-        resizeCanvas();
-        window.addEventListener('resize', resizeCanvas);
 
         // Funzioni di disegno
         function startDrawing(e) {
             isDrawing = true;
             const rect = canvas.getBoundingClientRect();
-            
-            // Gestisci sia touch che mouse
-            if (e.type === 'touchstart') {
-                lastX = e.touches[0].clientX - rect.left;
-                lastY = e.touches[0].clientY - rect.top;
-            } else {
-                lastX = e.clientX - rect.left;
-                lastY = e.clientY - rect.top;
-            }
+            lastX = e.clientX - rect.left;
+            lastY = e.clientY - rect.top;
+            log("Inizio disegno");
         }
 
         function draw(e) {
@@ -194,134 +118,74 @@
             e.preventDefault();
             
             const rect = canvas.getBoundingClientRect();
-            let currentX, currentY;
+            const currentX = e.clientX - rect.left;
+            const currentY = e.clientY - rect.top;
             
-            // Gestisci sia touch che mouse
-            if (e.type === 'touchmove') {
-                currentX = e.touches[0].clientX - rect.left;
-                currentY = e.touches[0].clientY - rect.top;
-            } else {
-                currentX = e.clientX - rect.left;
-                currentY = e.clientY - rect.top;
-            }
-            
-            // Disegna la linea
             ctx.beginPath();
             ctx.moveTo(lastX, lastY);
             ctx.lineTo(currentX, currentY);
             ctx.stroke();
             
-            // Aggiorna l'ultima posizione
             lastX = currentX;
             lastY = currentY;
         }
 
         function stopDrawing() {
             isDrawing = false;
+            log("Fine disegno");
         }
 
-        // Eventi del mouse
+        // Eventi mouse
         canvas.addEventListener('mousedown', startDrawing);
         canvas.addEventListener('mousemove', draw);
         canvas.addEventListener('mouseup', stopDrawing);
         canvas.addEventListener('mouseout', stopDrawing);
 
-        // Eventi touch per dispositivi mobili
-        canvas.addEventListener('touchstart', startDrawing);
-        canvas.addEventListener('touchmove', draw);
-        canvas.addEventListener('touchend', stopDrawing);
-
         // Bottone per pulire il canvas
         document.getElementById('clearButton').addEventListener('click', function() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            log("Canvas pulito");
         });
 
         // Bottone per salvare la firma
         document.getElementById('saveButton').addEventListener('click', function() {
-            // Debug: aggiungi un log visibile
-            console.log("Pulsante Salva Firma cliccato");
+            log("Pulsante Salva Firma cliccato");
             
             try {
-                // Controlla se la firma è vuota
-                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-                const isEmpty = !imageData.some(channel => channel !== 0);
-                
-                if (isEmpty) {
-                    alert('Per favore, disegna la tua firma prima di salvare.');
-                    return;
-                }
-                
-                // Crea un elemento di debug
-                const debugInfo = document.createElement('div');
-                debugInfo.style.position = 'fixed';
-                debugInfo.style.top = '10px';
-                debugInfo.style.left = '10px';
-                debugInfo.style.backgroundColor = 'rgba(0,0,0,0.7)';
-                debugInfo.style.color = 'white';
-                debugInfo.style.padding = '10px';
-                debugInfo.style.borderRadius = '5px';
-                debugInfo.style.zIndex = '9999';
-                document.body.appendChild(debugInfo);
-                
-                // Aggiorna info di debug
-                debugInfo.textContent = "Generando data URL...";
-                
-                // Converti il canvas in una stringa base64
                 const dataUrl = canvas.toDataURL('image/png');
+                log("Data URL generato, lunghezza: " + dataUrl.length);
                 
-                // Aggiorna info di debug
-                debugInfo.textContent = "Data URL generato. Lunghezza: " + dataUrl.length;
-                
-                // Verifica se l'oggetto Telegram è disponibile
-                if (!tg) {
-                    debugInfo.textContent += "\nERRORE: Oggetto Telegram non disponibile!";
-                    return;
-                }
-                
-                // Verifica la disponibilità di sendData
-                if (typeof tg.sendData !== 'function') {
-                    debugInfo.textContent += "\nERRORE: tg.sendData non è una funzione!";
-                    return;
-                }
-                
-                // Aggiorna info di debug
-                debugInfo.textContent += "\nInviando dati a Telegram...";
-                
-                // Invia i dati a Telegram
-                tg.sendData(dataUrl);
-                
-                // Aggiorna info di debug
-                debugInfo.textContent += "\nDati inviati a Telegram!";
-                
-                // Mostra conferma all'utente
-                try {
-                    tg.showPopup({
-                        title: 'Firma Salvata',
-                        message: 'La tua firma è stata salvata con successo!',
-                        buttons: [{ type: 'ok' }]
-                    });
+                if (tg && typeof tg.sendData === 'function') {
+                    log("Invio dati a Telegram...");
+                    tg.sendData(dataUrl);
+                    log("Dati inviati a Telegram");
                     
-                    debugInfo.textContent += "\nPopup mostrato.";
-                } catch (popupError) {
-                    debugInfo.textContent += "\nErrore nel mostrare popup: " + popupError.message;
-                }
-                
-                // Chiudi l'app dopo un breve ritardo
-                debugInfo.textContent += "\nChiusura app tra 3 secondi...";
-                setTimeout(() => {
-                    try {
-                        tg.close();
-                        debugInfo.textContent += "\nApp chiusa!";
-                    } catch (closeError) {
-                        debugInfo.textContent += "\nErrore nella chiusura: " + closeError.message;
+                    // Mostra dati Telegram disponibili
+                    if (tg.initDataUnsafe) {
+                        log("initDataUnsafe disponibile: " + 
+                            JSON.stringify(tg.initDataUnsafe));
                     }
-                }, 3000);
+                    
+                    // Alert conferma
+                    alert("Firma inviata al bot!");
+                } else {
+                    log("ERRORE: tg.sendData non disponibile");
+                    // Se l'API non è disponibile, mostra l'immagine nella pagina
+                    const img = document.createElement('img');
+                    img.src = dataUrl;
+                    img.style.maxWidth = "100%";
+                    img.style.marginTop = "20px";
+                    document.body.appendChild(img);
+                    log("Immagine visualizzata nella pagina");
+                }
             } catch (error) {
-                // In caso di errore, mostra l'errore in un elemento visibile
-                alert("Errore: " + error.message);
-                console.error("Errore salvataggio firma:", error);
+                log("ERRORE: " + error.message);
+                alert("Si è verificato un errore: " + error.message);
             }
         });
+
+        // Log finale
+        log("Script inizializzato");
     </script>
 </body>
 </html>
