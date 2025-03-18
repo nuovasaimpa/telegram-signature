@@ -202,42 +202,42 @@
         }
         
         // Bottone per salvare
-        document.getElementById('saveBtn').addEventListener('click', async function() {
-            // Verifica se c'è un disegno
-            if (!hasDrawn) {
-                updateStatus("Errore: Disegna prima la tua firma!");
-                return;
-            }
-            
-            try {
-                updateStatus("Elaborazione firma...");
-                
-                // Genera la rappresentazione bitmap
-                const bitmapData = generateBitmapRepresentation();
-                updateStatus(`Dimensione bitmap: ${bitmapData.length} caratteri`);
-                
-               if (tg.initDataUnsafe.query_id) {
-                    console.log('Query ID Telegram:', tg.initDataUnsafe.query_id);
-                    tg.sendData(bitmapData);
-                    updateStatus("Dati inviati! Chiusura...");
-                } else {
-                    updateStatus("Errore: Non sei su Telegram!");
-                }
-                
-                // Ritardo prima della chiusura
-                setTimeout(() => {
-                    updateStatus("Chiudo webapp...");
-                    tg.close();
-                }, 1500);
-            } catch (error) {
-                updateStatus("ERRORE: " + error.message);
-                
-                // Attendi più a lungo in caso di errore per poter vedere il messaggio
-                setTimeout(() => {
-                    tg.close();
-                }, 3000);
-            }
-        });
+      document.getElementById('saveBtn').addEventListener('click', async function() {
+    if (!hasDrawn) {
+        updateStatus("Errore: Disegna prima la tua firma!");
+        return;
+    }
+
+    try {
+        updateStatus("Elaborazione firma...");
+
+        const bitmapData = generateBitmapRepresentation();
+        updateStatus(`Dimensione bitmap: ${bitmapData.length} caratteri`);
+
+        // Log espliciti per debugging
+        console.log("bitmapData:", bitmapData.substring(0, 100));
+        console.log("initDataUnsafe:", tg.initDataUnsafe);
+        if (tg.initDataUnsafe.query_id) {
+            console.log('Query ID Telegram trovato:', tg.initDataUnsafe.query_id);
+            tg.sendData(bitmapData);
+            updateStatus("Dati inviati! Chiusura...");
+        } else {
+            console.log('Query ID Telegram NON trovato.');
+            updateStatus("Errore: Non sei su Telegram!");
+        }
+
+        setTimeout(() => {
+            tg.close();
+        }, 1500);
+    } catch (error) {
+        console.error("Errore durante l'invio dei dati:", error);
+        updateStatus("ERRORE: " + error.message);
+        setTimeout(() => {
+            tg.close();
+        }, 3000);
+    }
+});
+
     </script>
 </body>
 </html>
