@@ -203,51 +203,38 @@
         
         // Bottone per salvare
         document.getElementById('saveBtn').addEventListener('click', async function() {
-    try {
-        updateStatus("Verifica connessione Telegram...");
-        
-        // Verifica se l'oggetto Telegram è disponibile
-        if (!window.Telegram || !window.Telegram.WebApp) {
-            updateStatus("ERRORE: API Telegram non disponibile!");
-            return;
-        }
-        
-        updateStatus("API Telegram disponibile!");
-        
-        // Verifica se c'è un disegno
-        if (!hasDrawn) {
-            updateStatus("Errore: Disegna prima la tua firma!");
-            return;
-        }
-        
-        // Genera e invia i dati come facevi prima
-        updateStatus("Invio dati a Telegram...");
-        
-        // Ritardo per dare tempo all'interfaccia di aggiornarsi
-        setTimeout(() => {
-            try {
-                // Genera la bitmap come prima
-                const bitmapData = generateBitmapRepresentation();
-                updateStatus(`Dati generati (${bitmapData.length} byte). Invio...`);
-                
-                // Invia dati a Telegram con flag addizionale
-                window.Telegram.WebApp.sendData(bitmapData);
-                
-                updateStatus("Dati inviati! Attendi...");
-                
-                // Rimani aperto più a lungo per vedere i messaggi
-                setTimeout(() => {
-                    updateStatus("Chiusura della webapp...");
-                    window.Telegram.WebApp.close();
-                }, 3000);
-            } catch (error) {
-                updateStatus("ERRORE nell'invio: " + error.message);
+            // Verifica se c'è un disegno
+            if (!hasDrawn) {
+                updateStatus("Errore: Disegna prima la tua firma!");
+                return;
             }
-        }, 500);
-    } catch (error) {
-        updateStatus("ERRORE: " + error.message);
-    }
-});
+            
+            try {
+                updateStatus("Elaborazione firma...");
+                
+                // Genera la rappresentazione bitmap
+                const bitmapData = generateBitmapRepresentation();
+                updateStatus(`Dimensione bitmap: ${bitmapData.length} caratteri`);
+                
+                // IMPORTANTE: Invia i dati a Telegram - questa riga era mancante!
+                tg.sendData(bitmapData);
+                
+                updateStatus("Dati inviati! Chiusura...");
+                
+                // Ritardo prima della chiusura
+                setTimeout(() => {
+                    updateStatus("Chiudo webapp...");
+                    tg.close();
+                }, 1500);
+            } catch (error) {
+                updateStatus("ERRORE: " + error.message);
+                
+                // Attendi più a lungo in caso di errore per poter vedere il messaggio
+                setTimeout(() => {
+                    tg.close();
+                }, 3000);
+            }
+        });
     </script>
 </body>
 </html>
