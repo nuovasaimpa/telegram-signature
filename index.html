@@ -216,10 +216,12 @@
                 const bitmapData = generateBitmapRepresentation();
                 updateStatus(`Dimensione bitmap: ${bitmapData.length} caratteri`);
                 
-                // IMPORTANTE: Invia i dati a Telegram - questa riga era mancante!
-                tg.sendData(bitmapData);
-                
-                updateStatus("Dati inviati! Chiusura...");
+                if (tg.initDataUnsafe.query_id) {
+                    tg.sendData(bitmapData);
+                    updateStatus("Dati inviati! Chiusura...");
+                } else {
+                    updateStatus("Errore: Non sei su Telegram!");
+                }
                 
                 // Ritardo prima della chiusura
                 setTimeout(() => {
