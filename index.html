@@ -203,31 +203,51 @@
         
         // Bottone per salvare
         document.getElementById('saveBtn').addEventListener('click', async function() {
-            // Verifica se c'è un disegno
-            if (!hasDrawn) {
-                updateStatus("Errore: Disegna prima la tua firma!");
-                return;
-            }
-            
+    try {
+        updateStatus("Verifica connessione Telegram...");
+        
+        // Verifica se l'oggetto Telegram è disponibile
+        if (!window.Telegram || !window.Telegram.WebApp) {
+            updateStatus("ERRORE: API Telegram non disponibile!");
+            return;
+        }
+        
+        updateStatus("API Telegram disponibile!");
+        
+        // Verifica se c'è un disegno
+        if (!hasDrawn) {
+            updateStatus("Errore: Disegna prima la tua firma!");
+            return;
+        }
+        
+        // Genera e invia i dati come facevi prima
+        updateStatus("Invio dati a Telegram...");
+        
+        // Ritardo per dare tempo all'interfaccia di aggiornarsi
+        setTimeout(() => {
             try {
-                updateStatus("Elaborazione firma...");
-                
-                // Approccio 1: Usa una stringa bitmap compressa
+                // Genera la bitmap come prima
                 const bitmapData = generateBitmapRepresentation();
-                updateStatus(`Dimensione bitmap: ${bitmapData.length} caratteri`);
+                updateStatus(`Dati generati (${bitmapData.length} byte). Invio...`);
                 
-                // Invia dati a Telegram
-                tg.sendData(bitmapData);
-                updateStatus("Dati inviati! Chiusura...");
+                // Invia dati a Telegram con flag addizionale
+                window.Telegram.WebApp.sendData(bitmapData);
                 
-                // Chiudi dopo un secondo
+                updateStatus("Dati inviati! Attendi...");
+                
+                // Rimani aperto più a lungo per vedere i messaggi
                 setTimeout(() => {
-                    tg.close();
-                }, 1000);
+                    updateStatus("Chiusura della webapp...");
+                    window.Telegram.WebApp.close();
+                }, 3000);
             } catch (error) {
-                updateStatus("Errore: " + error.message);
+                updateStatus("ERRORE nell'invio: " + error.message);
             }
-        });
+        }, 500);
+    } catch (error) {
+        updateStatus("ERRORE: " + error.message);
+    }
+});
     </script>
 </body>
 </html>
