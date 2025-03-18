@@ -104,8 +104,50 @@
 
     <script>
         // Inizializza Telegram WebApp
-        let tg = window.Telegram.WebApp;
-        tg.expand();
+        let tg;
+        
+        // Verifica se l'oggetto Telegram è disponibile
+        try {
+            if (window.Telegram && window.Telegram.WebApp) {
+                tg = window.Telegram.WebApp;
+                tg.expand();
+                console.log("Telegram WebApp inizializzato correttamente");
+                
+                // Mostra le informazioni dell'oggetto WebApp
+                const webAppInfo = document.createElement('div');
+                webAppInfo.style.position = 'fixed';
+                webAppInfo.style.bottom = '10px';
+                webAppInfo.style.right = '10px';
+                webAppInfo.style.backgroundColor = 'rgba(0,0,0,0.7)';
+                webAppInfo.style.color = 'white';
+                webAppInfo.style.padding = '5px';
+                webAppInfo.style.borderRadius = '5px';
+                webAppInfo.style.fontSize = '10px';
+                webAppInfo.style.zIndex = '9999';
+                
+                // Aggiungiamo l'elemento alla pagina
+                document.addEventListener('DOMContentLoaded', function() {
+                    document.body.appendChild(webAppInfo);
+                    
+                    // Popola con alcune info utili
+                    const info = [
+                        `initData: ${tg.initData ? "presente" : "assente"}`,
+                        `initDataUnsafe: ${tg.initDataUnsafe ? "presente" : "assente"}`,
+                        `version: ${tg.version || "non disponibile"}`,
+                        `platform: ${tg.platform || "non disponibile"}`,
+                        `colorScheme: ${tg.colorScheme || "non disponibile"}`
+                    ];
+                    
+                    webAppInfo.textContent = info.join('\n');
+                });
+            } else {
+                console.error("Telegram WebApp non disponibile");
+                alert("ERRORE: Telegram WebApp non disponibile. Assicurati di aprire questa pagina tramite l'app Telegram.");
+            }
+        } catch (error) {
+            console.error("Errore nell'inizializzazione di Telegram WebApp:", error);
+            alert("Errore nell'inizializzazione: " + error.message);
+        }
 
         // Configura il canvas
         const canvas = document.getElementById('signatureCanvas');
@@ -196,32 +238,89 @@
 
         // Bottone per salvare la firma
         document.getElementById('saveButton').addEventListener('click', function() {
-            // Controlla se la firma è vuota
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-            const isEmpty = !imageData.some(channel => channel !== 0);
+            // Debug: aggiungi un log visibile
+            console.log("Pulsante Salva Firma cliccato");
             
-            if (isEmpty) {
-                alert('Per favore, disegna la tua firma prima di salvare.');
-                return;
+            try {
+                // Controlla se la firma è vuota
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+                const isEmpty = !imageData.some(channel => channel !== 0);
+                
+                if (isEmpty) {
+                    alert('Per favore, disegna la tua firma prima di salvare.');
+                    return;
+                }
+                
+                // Crea un elemento di debug
+                const debugInfo = document.createElement('div');
+                debugInfo.style.position = 'fixed';
+                debugInfo.style.top = '10px';
+                debugInfo.style.left = '10px';
+                debugInfo.style.backgroundColor = 'rgba(0,0,0,0.7)';
+                debugInfo.style.color = 'white';
+                debugInfo.style.padding = '10px';
+                debugInfo.style.borderRadius = '5px';
+                debugInfo.style.zIndex = '9999';
+                document.body.appendChild(debugInfo);
+                
+                // Aggiorna info di debug
+                debugInfo.textContent = "Generando data URL...";
+                
+                // Converti il canvas in una stringa base64
+                const dataUrl = canvas.toDataURL('image/png');
+                
+                // Aggiorna info di debug
+                debugInfo.textContent = "Data URL generato. Lunghezza: " + dataUrl.length;
+                
+                // Verifica se l'oggetto Telegram è disponibile
+                if (!tg) {
+                    debugInfo.textContent += "\nERRORE: Oggetto Telegram non disponibile!";
+                    return;
+                }
+                
+                // Verifica la disponibilità di sendData
+                if (typeof tg.sendData !== 'function') {
+                    debugInfo.textContent += "\nERRORE: tg.sendData non è una funzione!";
+                    return;
+                }
+                
+                // Aggiorna info di debug
+                debugInfo.textContent += "\nInviando dati a Telegram...";
+                
+                // Invia i dati a Telegram
+                tg.sendData(dataUrl);
+                
+                // Aggiorna info di debug
+                debugInfo.textContent += "\nDati inviati a Telegram!";
+                
+                // Mostra conferma all'utente
+                try {
+                    tg.showPopup({
+                        title: 'Firma Salvata',
+                        message: 'La tua firma è stata salvata con successo!',
+                        buttons: [{ type: 'ok' }]
+                    });
+                    
+                    debugInfo.textContent += "\nPopup mostrato.";
+                } catch (popupError) {
+                    debugInfo.textContent += "\nErrore nel mostrare popup: " + popupError.message;
+                }
+                
+                // Chiudi l'app dopo un breve ritardo
+                debugInfo.textContent += "\nChiusura app tra 3 secondi...";
+                setTimeout(() => {
+                    try {
+                        tg.close();
+                        debugInfo.textContent += "\nApp chiusa!";
+                    } catch (closeError) {
+                        debugInfo.textContent += "\nErrore nella chiusura: " + closeError.message;
+                    }
+                }, 3000);
+            } catch (error) {
+                // In caso di errore, mostra l'errore in un elemento visibile
+                alert("Errore: " + error.message);
+                console.error("Errore salvataggio firma:", error);
             }
-            
-            // Converti il canvas in una stringa base64
-            const dataUrl = canvas.toDataURL('image/png');
-            
-            // Invia i dati a Telegram
-            tg.sendData(dataUrl);
-            
-            // Mostra conferma all'utente
-            tg.showPopup({
-                title: 'Firma Salvata',
-                message: 'La tua firma è stata salvata con successo!',
-                buttons: [{ type: 'ok' }]
-            });
-            
-            // Chiudi l'app
-            setTimeout(() => {
-                tg.close();
-            }, 1000);
         });
     </script>
 </body>
