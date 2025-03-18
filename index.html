@@ -1,300 +1,164 @@
 <!DOCTYPE html>
-<html lang="it">
+<html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Firma Digitale</title>
+    <title>Firma Semplice</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: sans-serif;
             margin: 0;
-            padding: 20px;
-            background-color: #f0f0f0;
+            padding: 16px;
             touch-action: none;
         }
-        h1 {
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        .signature-container {
-            border: 2px dashed #999;
-            background-color: white;
-            margin-bottom: 20px;
-            position: relative;
-            touch-action: none;
-        }
-        #signatureCanvas {
+        canvas {
+            border: 2px solid #999;
             width: 100%;
             height: 200px;
-            display: block;
             touch-action: none;
         }
-        .buttons {
-            margin-top: 20px;
-            text-align: center;
-        }
         button {
-            padding: 10px 20px;
-            margin: 0 5px;
+            display: block;
+            width: 100%;
+            padding: 12px;
+            margin-top: 16px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
             font-size: 16px;
             cursor: pointer;
-            border: none;
-            border-radius: 8px;
         }
-        #clearButton {
-            background-color: #f0f0f0;
-            color: #333;
-        }
-        #saveButton {
-            background-color: #4CAF50;
-            color: white;
-        }
-        #debug {
-            margin-top: 20px;
-            padding: 10px;
-            background-color: #eee;
-            border: 1px solid #ccc;
-            max-height: 150px;
-            overflow-y: auto;
-            font-size: 12px;
-        }
-        .instructions {
-            text-align: center;
-            margin-top: 10px;
-            font-style: italic;
-            color: #666;
+        #clearBtn {
+            background: #f44336;
+            margin-top: 8px;
         }
     </style>
 </head>
 <body>
-    <h1>Disegna la tua firma</h1>
-    
-    <div id="debug">
-        <p>Log di debug:</p>
-    </div>
-    
-    <div class="signature-container">
-        <canvas id="signatureCanvas"></canvas>
-    </div>
-    
-    <div class="instructions">
-        Disegna la tua firma nel riquadro sopra
-    </div>
-    
-    <div class="buttons">
-        <button id="clearButton">Cancella</button>
-        <button id="saveButton">Salva Firma</button>
-    </div>
+    <h2>Disegna la tua firma</h2>
+    <canvas id="signatureCanvas"></canvas>
+    <button id="saveBtn">Salva Firma</button>
+    <button id="clearBtn">Cancella</button>
 
     <script>
-        // Funzione per il logging di debug
-        function log(message) {
-            const debugEl = document.getElementById('debug');
-            const p = document.createElement('p');
-            p.textContent = message;
-            debugEl.appendChild(p);
-            debugEl.scrollTop = debugEl.scrollHeight;
-            console.log(message);
-        }
+        // Inizializza Telegram WebApp
+        const tg = window.Telegram.WebApp;
+        tg.expand();
 
-        // Log iniziale
-        log("Pagina caricata");
-
-        // Verifica Telegram WebApp
-        let tg;
-        try {
-            if (window.Telegram && window.Telegram.WebApp) {
-                tg = window.Telegram.WebApp;
-                log("Telegram WebApp trovato");
-                tg.expand();
-                log("WebApp espansa");
-            } else {
-                log("ERRORE: Telegram WebApp non disponibile");
-            }
-        } catch (e) {
-            log("Errore durante l'inizializzazione: " + e.message);
-        }
-
-        // Configura il canvas
+        // Canvas setup
         const canvas = document.getElementById('signatureCanvas');
         const ctx = canvas.getContext('2d');
         
-        // Imposta le dimensioni reali del canvas
-        function resizeCanvas() {
-            const container = canvas.parentElement;
-            const rect = container.getBoundingClientRect();
-            canvas.width = rect.width;
-            canvas.height = rect.height;
-            ctx.lineWidth = 3;
-            ctx.lineCap = 'round';
-            ctx.strokeStyle = 'black';
-            log("Canvas ridimensionato: " + canvas.width + "x" + canvas.height);
-        }
+        // Impostazione dimensioni canvas
+        canvas.width = canvas.offsetWidth;
+        canvas.height = canvas.offsetHeight;
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = 'black';
         
-        resizeCanvas();
-        window.addEventListener('resize', resizeCanvas);
-
         // Variabili per il disegno
         let isDrawing = false;
-        let lastX = 0;
-        let lastY = 0;
-
-        // Funzioni di disegno per Touch
-        function handleTouchStart(e) {
-            e.preventDefault();
-            const touch = e.touches[0];
-            const rect = canvas.getBoundingClientRect();
-            lastX = touch.clientX - rect.left;
-            lastY = touch.clientY - rect.top;
-            isDrawing = true;
-            log("Touch iniziato: " + lastX + "," + lastY);
-        }
-
-        function handleTouchMove(e) {
-            if (!isDrawing) return;
-            e.preventDefault();
-            
-            const touch = e.touches[0];
-            const rect = canvas.getBoundingClientRect();
-            const currentX = touch.clientX - rect.left;
-            const currentY = touch.clientY - rect.top;
-            
-            ctx.beginPath();
-            ctx.moveTo(lastX, lastY);
-            ctx.lineTo(currentX, currentY);
-            ctx.stroke();
-            
-            lastX = currentX;
-            lastY = currentY;
-        }
-
-        function handleTouchEnd(e) {
-            e.preventDefault();
-            isDrawing = false;
-            log("Touch terminato");
-        }
-
-        // Funzioni di disegno per Mouse
-        function handleMouseDown(e) {
-            const rect = canvas.getBoundingClientRect();
-            lastX = e.clientX - rect.left;
-            lastY = e.clientY - rect.top;
-            isDrawing = true;
-            log("Mouse premuto: " + lastX + "," + lastY);
-        }
-
-        function handleMouseMove(e) {
-            if (!isDrawing) return;
-            
-            const rect = canvas.getBoundingClientRect();
-            const currentX = e.clientX - rect.left;
-            const currentY = e.clientY - rect.top;
-            
-            ctx.beginPath();
-            ctx.moveTo(lastX, lastY);
-            ctx.lineTo(currentX, currentY);
-            ctx.stroke();
-            
-            lastX = currentX;
-            lastY = currentY;
-        }
-
-        function handleMouseUp() {
-            isDrawing = false;
-            log("Mouse rilasciato");
-        }
-
-        // Aggiungi eventi touch
-        canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
-        canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
-        canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+        let lastX, lastY;
         
-        // Aggiungi eventi mouse
-        canvas.addEventListener('mousedown', handleMouseDown);
-        canvas.addEventListener('mousemove', handleMouseMove);
-        canvas.addEventListener('mouseup', handleMouseUp);
-        canvas.addEventListener('mouseout', handleMouseUp);
-
-        // Bottone per pulire il canvas
-        document.getElementById('clearButton').addEventListener('click', function() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            log("Canvas pulito");
-        });
-
-        // Funzione per verificare se la firma è vuota
-        function isSignatureEmpty() {
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-            for (let i = 0; i < imageData.length; i += 4) {
-                if (imageData[i + 3] > 0) {
-                    return false; // Trovato un pixel non trasparente
-                }
+        // Funzioni di disegno
+        function draw(e) {
+            if (!isDrawing) return;
+            
+            // Previeni lo scrolling su mobile
+            e.preventDefault();
+            
+            let clientX, clientY;
+            
+            // Gestisci sia touch che mouse
+            if (e.type.includes('touch')) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else {
+                clientX = e.clientX;
+                clientY = e.clientY;
             }
-            return true; // Tutti i pixel sono trasparenti
+            
+            const rect = canvas.getBoundingClientRect();
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
+            
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            
+            lastX = x;
+            lastY = y;
         }
-
-        // Bottone per salvare la firma
-        document.getElementById('saveButton').addEventListener('click', function() {
-            log("Pulsante Salva Firma cliccato");
+        
+        function startDrawing(e) {
+            isDrawing = true;
+            
+            let clientX, clientY;
+            
+            if (e.type.includes('touch')) {
+                e.preventDefault();
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            }
+            
+            const rect = canvas.getBoundingClientRect();
+            lastX = clientX - rect.left;
+            lastY = clientY - rect.top;
+        }
+        
+        function stopDrawing() {
+            isDrawing = false;
+        }
+        
+        // Eventi per mouse
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseout', stopDrawing);
+        
+        // Eventi per touch
+        canvas.addEventListener('touchstart', startDrawing, {passive: false});
+        canvas.addEventListener('touchmove', draw, {passive: false});
+        canvas.addEventListener('touchend', stopDrawing);
+        
+        // Bottone per cancellare
+        document.getElementById('clearBtn').addEventListener('click', function() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        });
+        
+        // Bottone per salvare
+        document.getElementById('saveBtn').addEventListener('click', function() {
+            // Verifica se il canvas è vuoto
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+            const isEmpty = !imageData.some(channel => channel !== 0);
+            
+            if (isEmpty) {
+                alert('Disegna prima la tua firma!');
+                return;
+            }
             
             try {
-                // Verifica se la firma è vuota
-                if (isSignatureEmpty()) {
-                    alert('Per favore, disegna la tua firma prima di salvare.');
-                    log("Firma vuota, salvataggio annullato");
-                    return;
-                }
+                // Crea data URL con qualità ridotta per diminuire dimensione
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
                 
-                // Genera il data URL
-                log("Generazione data URL...");
-                const dataUrl = canvas.toDataURL('image/png');
-                log("Data URL generato, lunghezza: " + dataUrl.length);
+                // Invia dati a Telegram
+                tg.sendData(dataUrl);
                 
-                // Verifica se tg e sendData esistono
-                if (tg && typeof tg.sendData === 'function') {
-                    log("Invio dati a Telegram...");
-                    tg.sendData(dataUrl);
-                    log("Dati inviati a Telegram");
-                    
-                    // Verifica se showPopup esiste
-                    if (typeof tg.showPopup === 'function') {
-                        log("Mostro popup di conferma...");
-                        tg.showPopup({
-                            title: 'Firma Salvata',
-                            message: 'La tua firma è stata inviata al bot!',
-                            buttons: [{ type: 'ok' }]
-                        });
-                    } else {
-                        alert("Firma inviata al bot!");
-                    }
-                    
-                    // Chiudi la webapp dopo un breve ritardo
-                    log("Chiusura webapp tra 2 secondi...");
-                    setTimeout(() => {
-                        if (typeof tg.close === 'function') {
-                            tg.close();
-                        }
-                    }, 2000);
-                } else {
-                    log("ERRORE: tg.sendData non disponibile");
-                    alert("Non è possibile inviare la firma al bot. Assicurati di aprire questa pagina tramite Telegram.");
-                    
-                    // Se l'API non è disponibile, mostra l'immagine nella pagina
-                    const img = document.createElement('img');
-                    img.src = dataUrl;
-                    img.style.maxWidth = "100%";
-                    img.style.marginTop = "20px";
-                    document.body.appendChild(img);
-                    log("Immagine visualizzata nella pagina per debug");
-                }
+                // Mostra conferma
+                alert('Firma inviata!');
+                
+                // Chiudi dopo un secondo
+                setTimeout(() => tg.close(), 1000);
             } catch (error) {
-                log("ERRORE: " + error.message);
-                alert("Si è verificato un errore: " + error.message);
+                alert('Errore: ' + error.message);
             }
         });
-
-        // Log finale
-        log("Script inizializzato");
     </script>
 </body>
 </html>
