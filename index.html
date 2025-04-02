@@ -42,6 +42,12 @@
             padding: 8px;
             text-align: center;
         }
+        #debugInfo {
+            margin-top: 10px;
+            font-size: 10px;
+            color: #666;
+            word-break: break-all;
+        }
     </style>
 </head>
 <body>
@@ -50,6 +56,7 @@
     <button id="saveBtn">Salva Firma</button>
     <button id="clearBtn">Cancella</button>
     <div id="status"></div>
+    <div id="debugInfo"></div>
 
     <script>
         // Inizializza Telegram WebApp
@@ -58,13 +65,24 @@
         
         // Funzione per aggiornare lo stato
         const statusDiv = document.getElementById('status');
+        const debugDiv = document.getElementById('debugInfo');
+        
         function updateStatus(msg) {
             statusDiv.innerText = msg;
             console.log(msg);
         }
         
+        function updateDebug(msg) {
+            debugDiv.innerText += msg + "\n";
+            console.log("DEBUG:", msg);
+        }
+        
+        // Verifica inizializzazione WebApp
         updateStatus("WebApp inizializzata");
-
+        updateDebug(`Version: ${tg.version}`);
+        updateDebug(`Platform: ${tg.platform}`);
+        updateDebug(`Colorscheme: ${tg.colorScheme}`);
+        
         // Canvas setup
         const canvas = document.getElementById('signatureCanvas');
         const ctx = canvas.getContext('2d');
@@ -201,43 +219,73 @@
             return header + compressed;
         }
         
-        // Bottone per salvare
-      document.getElementById('saveBtn').addEventListener('click', async function() {
-    if (!hasDrawn) {
-        updateStatus("Errore: Disegna prima la tua firma!");
-        return;
-    }
-
-    try {
-        updateStatus("Elaborazione firma...");
-
-        const bitmapData = generateBitmapRepresentation();
-        updateStatus(`Dimensione bitmap: ${bitmapData.length} caratteri`);
-
-        // Log espliciti per debugging
-        console.log("bitmapData:", bitmapData.substring(0, 100));
-        console.log("initDataUnsafe:", tg.initDataUnsafe);
-        if (tg.initDataUnsafe.query_id) {
-            console.log('Query ID Telegram trovato:', tg.initDataUnsafe.query_id);
-            tg.sendData(bitmapData);
-            updateStatus("Dati inviati! Chiusura...");
-        } else {
-            console.log('Query ID Telegram NON trovato.');
-            updateStatus("Errore: Non sei su Telegram!");
+        // Alternativa al bitmap: dataURL (più grande ma più compatibile)
+        function generateDataURLRepresentation() {
+            return canvas.toDataURL('image/png');
         }
+        
+        // Bottone per salvare - MODIFICATO per maggiore compatibilità
+        document.getElementById('saveBtn').addEventListener('click', async function() {
+            if (!hasDrawn) {
+                updateStatus("Errore: Disegna prima la tua firma!");
+                return;
+            }
 
-        setTimeout(() => {
-            tg.close();
-        }, 1500);
-    } catch (error) {
-        console.error("Errore durante l'invio dei dati:", error);
-        updateStatus("ERRORE: " + error.message);
-        setTimeout(() => {
-            tg.close();
-        }, 3000);
-    }
-});
+            try {
+                updateStatus("Elaborazione firma...");
+                
+                // Genera sia il bitmap che il dataURL come backup
+                const bitmapData = generateBitmapRepresentation();
+                const dataURL = generateDataURLRepresentation();
+                
+                // Usa la rappresentazione più piccola (bitmap) come prima scelta
+                let dataToSend = bitmapData;
+                
+                // Debug info
+                updateDebug(`Bitmap size: ${bitmapData.length} chars`);
+                updateDebug(`DataURL size: ${dataURL.length} chars`);
+                
+                // INFORMAZIONI TELEGRAF WEBAPP
+                updateDebug(`MainButton text: ${tg.MainButton.text}`);
+                updateDebug(`InitData available: ${tg.initData ? 'yes' : 'no'}`);
+                updateDebug(`initDataUnsafe: ${JSON.stringify(tg.initDataUnsafe).substring(0, 100)}`);
+                
+                // IMPORTANTE: Tenta di inviare i dati senza controlli
+                updateStatus("Invio dati a Telegram...");
+                
+                // Invia i dati al bot - SENZA controlli
+                tg.sendData(dataToSend);
+                
+                updateStatus("Dati inviati! Chiusura tra 3 secondi...");
+                
+                // Chiudi la WebApp dopo un breve ritardo
+                setTimeout(() => {
+                    tg.close();
+                }, 3000);
+                
+            } catch (error) {
+                console.error("Errore durante l'invio dei dati:", error);
+                updateStatus("ERRORE: " + error.message);
+                updateDebug("Stack: " + error.stack);
+                
+                // In caso di errore, attendi più a lungo prima di chiudere
+                setTimeout(() => {
+                    tg.close();
+                }, 5000);
+            }
+        });
 
+        // Aggiungi evento di inizializzazione per verificare corretto avvio
+        window.addEventListener('load', function() {
+            updateDebug("Pagina caricata completamente");
+            
+            // Verifica inizializzazione Telegram WebApp
+            if (window.Telegram && window.Telegram.WebApp) {
+                updateDebug("Telegram WebApp disponibile");
+            } else {
+                updateStatus("ERRORE: Telegram WebApp non disponibile");
+            }
+        });
     </script>
 </body>
 </html>
