@@ -84,14 +84,14 @@
         updateDebug(`Version: ${tg.version}`);
         updateDebug(`Platform: ${tg.platform}`);
         
-        // Canvas setup
+        // Canvas setup - Riduciamo ulteriormente la dimensione
         const canvas = document.getElementById('signatureCanvas');
         const ctx = canvas.getContext('2d');
         
-        // Imposta dimensioni del canvas - IMPORTANTE: usiamo un canvas piccolo per ridurre la dimensione dei dati
-        canvas.width = 300;
-        canvas.height = 150;
-        ctx.lineWidth = 3;
+        // IMPORTANTE: canvas molto piccolo per ridurre dimensioni dati
+        canvas.width = 240;  // Ridotto da 300
+        canvas.height = 120; // Ridotto da 150
+        ctx.lineWidth = 2;   // Ridotto da 3
         ctx.lineCap = 'round';
         ctx.strokeStyle = 'black';
         
@@ -179,18 +179,47 @@
             updateStatus("Canvas cancellato");
         });
         
-        // Evento di chiusura della webapp
-        tg.onEvent('viewportChanged', function() {
-            updateDebug('Viewport changed');
-        });
+        // Bitmap compresso (molto più piccolo di dataURL)
+        function generateCompressedBitmap() {
+            // Ottiene i dati dal canvas
+            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imgData.data;
+            
+            // Crea una rappresentazione bitmap (0 = bianco, 1 = nero)
+            let bitmap = '';
+            for (let i = 0; i < data.length; i += 4) {
+                // Se il pixel non è completamente bianco, lo consideriamo parte della firma
+                if (data[i] < 250 || data[i + 1] < 250 || data[i + 2] < 250) {
+                    bitmap += '1';
+                } else {
+                    bitmap += '0';
+                }
+            }
+            
+            // Comprime la bitmap in formato RLE (run-length encoding)
+            let compressed = '';
+            let count = 1;
+            let current = bitmap[0];
+            
+            for (let i = 1; i < bitmap.length; i++) {
+                if (bitmap[i] === current) {
+                    count++;
+                } else {
+                    compressed += current + count;
+                    current = bitmap[i];
+                    count = 1;
+                }
+            }
+            
+            compressed += current + count;
+            
+            // Aggiungi dimensioni del canvas all'inizio
+            return `${canvas.width}x${canvas.height}:${compressed}`;
+        }
         
-        tg.onEvent('mainButtonClicked', function() {
-            updateDebug('Main button clicked');
-        });
-        
-        // Funzione per generare un id univoco
-        function generateSignatureId() {
-            return `sig_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+        // Funzione per creare un dataURL molto compresso
+        function generateSmallDataURL() {
+            return canvas.toDataURL('image/jpeg', 0.5); // JPEG con qualità 50%
         }
         
         // Bottone per salvare
@@ -203,27 +232,23 @@
             try {
                 updateStatus("Elaborazione firma...");
                 
-                // Genera un dataURL dell'immagine (più universale e compatibile)
-                // Metodo standard: dataURL formato PNG
-                const dataURL = canvas.toDataURL('image/png');
+                // Usa la rappresentazione bitmap compressa (molto più piccola)
+                const bitmapData = generateCompressedBitmap();
+                updateDebug(`Dimensione bitmap: ${bitmapData.length} caratteri`);
                 
-                updateDebug(`DataURL generato (${dataURL.length} bytes)`);
+                // Se la bitmap è troppo grande, potremmo usare dataURL compresso
+                if (bitmapData.length > 4000) {
+                    updateStatus("Bitmap troppo grande, usando formato alternativo");
+                    return;
+                }
                 
-                // Invia direttamente a Telegram
+                // Invio a Telegram
                 updateStatus("Invio dati a Telegram...");
-                
-                // Aggiungi un identificatore univoco
-                const signatureData = `${generateSignatureId()}|${dataURL}`;
-                
-                // Usa il metodo ufficiale Telegram per inviare i dati
-                tg.sendData(signatureData);
+                tg.sendData(bitmapData);
                 
                 updateStatus("Dati inviati! Chiusura imminente...");
-                updateDebug("Dati inviati a Telegram");
                 
-                // Non chiudere la webapp immediatamente per permettere agli utenti di vedere i messaggi
                 setTimeout(() => {
-                    updateStatus("Chiusura webapp...");
                     tg.close();
                 }, 2000);
                 
@@ -236,10 +261,7 @@
 
         // Stampa informazioni diagnostiche iniziali
         updateDebug(`InitData available: ${tg.initData ? 'yes' : 'no'}`);
-        if (tg.initData) {
-            updateDebug(`InitData length: ${tg.initData.length}`);
-        }
-        updateDebug(`initDataUnsafe: ${JSON.stringify(tg.initDataUnsafe).substring(0, 100)}...`);
+        updateDebug(`Dimensioni canvas: ${canvas.width}x${canvas.height}`);
     </script>
 </body>
 </html>
