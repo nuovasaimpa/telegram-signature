@@ -131,6 +131,26 @@
         .instructions-container li {
             margin-bottom: 8px;
         }
+        /* Aggiunti per la visualizzazione dell'immagine */
+        .signature-preview {
+            margin-top: 20px;
+            border: 1px dashed #ccc;
+            padding: 10px;
+            display: none;
+            text-align: center;
+        }
+        .signature-preview img {
+            max-width: 100%;
+            margin-bottom: 10px;
+        }
+        .button-long {
+            width: 100%;
+            margin-top: 10px;
+            margin-bottom: 5px;
+        }
+        #preview-download {
+            background-color: #27ae60;
+        }
     </style>
 </head>
 <body>
@@ -146,17 +166,27 @@
         <div class="buttons">
             <button id="clear">Cancella</button>
             <div class="button-group">
-                <button id="download">Scarica Firma</button>
+                <button id="download">Conferma Firma</button>
             </div>
         </div>
         <div class="status" id="status"></div>
+        
+        <!-- Nuova sezione per l'anteprima della firma -->
+        <div class="signature-preview" id="signature-preview">
+            <h3>Anteprima della firma</h3>
+            <img id="preview-image" src="" alt="Anteprima firma">
+            <p id="preview-filename"></p>
+            <button id="preview-download" class="button-long">Salva Immagine</button>
+            <p>In alternativa, fai uno screenshot di questa schermata</p>
+        </div>
         
         <div class="instructions-container">
             <h3>Istruzioni:</h3>
             <ol>
                 <li>Disegna la tua firma nel campo sopra</li>
-                <li>Premi "Scarica Firma" per salvare l'immagine</li>
-                <li>Torna al bot Telegram e invia l'immagine scaricata</li>
+                <li>Premi "Conferma Firma" per visualizzare l'anteprima</li>
+                <li>Salva l'immagine sul tuo dispositivo</li>
+                <li>Torna al bot Telegram e invia l'immagine salvata</li>
                 <li>Una volta inviata l'immagine, la firma verrà registrata</li>
             </ol>
         </div>
@@ -189,11 +219,16 @@
             const canvas = document.getElementById('signature-pad');
             const userInfoDiv = document.getElementById('user-info');
             const statusDiv = document.getElementById('status');
+            const previewDiv = document.getElementById('signature-preview');
+            const previewImage = document.getElementById('preview-image');
+            const previewFilename = document.getElementById('preview-filename');
             const params = getUrlParams();
             
             let telegramId = params.id || '';
             let nome = params.nome || '';
             let cognome = params.cognome || '';
+            let currentSignatureDataUrl = null;
+            let currentFileName = '';
             
             // Mostra informazioni utente
             if (nome && cognome) {
@@ -222,41 +257,60 @@
             document.getElementById('clear').addEventListener('click', function() {
                 signaturePad.clear();
                 statusDiv.style.display = 'none';
+                previewDiv.style.display = 'none';
             });
             
-            // Bottone per scaricare
+            // Bottone per confermare e mostrare anteprima
             document.getElementById('download').addEventListener('click', function() {
                 if (signaturePad.isEmpty()) {
-                    showStatus('Per favore, disegna la tua firma prima di scaricare.', 'error');
+                    showStatus('Per favore, disegna la tua firma prima di confermare.', 'error');
                     return;
                 }
                 
                 // Genera un nome file composto da ID utente e timestamp
-                const fileName = `firma_${telegramId || 'utente'}_${Date.now()}.png`;
+                currentFileName = `firma_${telegramId || 'utente'}_${Date.now()}.png`;
                 
                 // Ottieni l'immagine come data URL
-                const dataUrl = signaturePad.toDataURL('image/png');
+                currentSignatureDataUrl = signaturePad.toDataURL('image/png');
                 
-                // Crea un link temporaneo per il download
-                const link = document.createElement('a');
-                link.href = dataUrl;
-                link.download = fileName;
-                
-                // Aggiungi il link al DOM e clicca automaticamente
-                document.body.appendChild(link);
-                link.click();
-                
-                // Rimuovi il link dal DOM
-                document.body.removeChild(link);
+                // Mostra l'anteprima
+                previewImage.src = currentSignatureDataUrl;
+                previewFilename.textContent = `Nome file: ${currentFileName}`;
+                previewDiv.style.display = 'block';
                 
                 // Mostra messaggio di successo con istruzioni
-                showStatus('✅ Firma scaricata! Ora torna al bot Telegram e invia questa immagine.', 'success');
+                showStatus('✅ Firma confermata! Ora salva l\'immagine premendo il pulsante qui sotto.', 'success');
+            });
+            
+            // Bottone per scaricare dall'anteprima
+            document.getElementById('preview-download').addEventListener('click', function() {
+                if (!currentSignatureDataUrl) {
+                    return;
+                }
                 
-                // Se siamo in Telegram WebApp, informa che dobbiamo chiudere manualmente
-                if (window.Telegram && window.Telegram.WebApp) {
+                try {
+                    // Metodo 1: Link di download standard (funziona su desktop)
+                    const link = document.createElement('a');
+                    link.href = currentSignatureDataUrl;
+                    link.download = currentFileName;
+                    link.style.display = 'none';
+                    document.body.appendChild(link);
+                    link.click();
                     setTimeout(() => {
-                        showStatus('Torna al bot Telegram e invia l\'immagine della firma appena scaricata', 'info');
-                    }, 3000);
+                        document.body.removeChild(link);
+                    }, 100);
+                    
+                    // Metodo 2: Se supportato, usa saveAs API (alternativo)
+                    if (navigator.saveBlob || navigator.msSaveBlob) {
+                        const blob = dataURLToBlob(currentSignatureDataUrl);
+                        (navigator.saveBlob || navigator.msSaveBlob)(blob, currentFileName);
+                    }
+                    
+                    // Messaggio utente
+                    showStatus('✅ Download avviato! Se l\'immagine non viene scaricata, prova a fare uno screenshot di questa pagina.', 'success');
+                } catch (e) {
+                    console.error('Errore durante il download:', e);
+                    showStatus('❌ Errore durante il download. Prova a fare uno screenshot dell\'immagine.', 'error');
                 }
             });
             
@@ -265,6 +319,21 @@
                 statusDiv.textContent = message;
                 statusDiv.className = 'status';
                 statusDiv.classList.add(type);
+            }
+            
+            // Funzione per convertire dataURL in Blob
+            function dataURLToBlob(dataURL) {
+                const parts = dataURL.split(';base64,');
+                const contentType = parts[0].split(':')[1];
+                const raw = window.atob(parts[1]);
+                const rawLength = raw.length;
+                const uInt8Array = new Uint8Array(rawLength);
+                
+                for (let i = 0; i < rawLength; ++i) {
+                    uInt8Array[i] = raw.charCodeAt(i);
+                }
+                
+                return new Blob([uInt8Array], { type: contentType });
             }
             
             // Funzione per ridimensionare il canvas
