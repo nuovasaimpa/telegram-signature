@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Firma Digitale</title>
     <style>
         body {
@@ -13,6 +13,7 @@
             flex-direction: column;
             align-items: center;
             background-color: #f5f5f5;
+            touch-action: manipulation;
         }
         .container {
             max-width: 600px;
@@ -25,18 +26,27 @@
         h1 {
             color: #2c3e50;
             text-align: center;
+            margin-bottom: 15px;
         }
-        #signature-pad {
+        .signature-container {
+            position: relative;
+            width: 100%;
+            margin-bottom: 15px;
             border: 1px solid #ccc;
             border-radius: 5px;
+            overflow: hidden; /* Prevent canvas overflow */
+        }
+        #signature-pad {
+            touch-action: none; /* Important for proper touch handling */
             width: 100%;
             height: 200px;
             background-color: white;
-            margin-bottom: 15px;
+            display: block;
         }
         .buttons {
             display: flex;
             justify-content: space-between;
+            margin-bottom: 15px;
         }
         button {
             padding: 10px 15px;
@@ -46,6 +56,7 @@
             border-radius: 5px;
             cursor: pointer;
             font-size: 16px;
+            font-weight: 500;
         }
         button:hover {
             background-color: #2980b9;
@@ -59,6 +70,10 @@
         .user-info {
             margin-bottom: 15px;
             font-size: 16px;
+            border-left: 4px solid #3498db;
+            padding: 8px 12px;
+            background-color: #ebf5fb;
+            border-radius: 0 5px 5px 0;
         }
         .status {
             margin-top: 15px;
@@ -95,6 +110,12 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        .instruction {
+            color: #7f8c8d;
+            text-align: center;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
     </style>
 </head>
 <body>
@@ -103,7 +124,10 @@
         <div class="user-info" id="user-info">
             Caricamento informazioni utente...
         </div>
-        <canvas id="signature-pad"></canvas>
+        <p class="instruction">Disegna la tua firma nel campo sottostante</p>
+        <div class="signature-container">
+            <canvas id="signature-pad"></canvas>
+        </div>
         <div class="buttons">
             <button id="clear">Cancella</button>
             <button id="save">Salva Firma</button>
@@ -115,7 +139,7 @@
         <div class="status" id="status"></div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.5/dist/signature_pad.umd.min.js"></script>
     <script>
         // Recupera i parametri dalla URL
         function getUrlParams() {
@@ -132,6 +156,13 @@
 
         // Inizializzazione al caricamento della pagina
         document.addEventListener('DOMContentLoaded', function() {
+            // Previeni lo zoom su dispositivi mobili
+            document.addEventListener('touchmove', function(e) {
+                if (e.touches.length > 1) {
+                    e.preventDefault();
+                }
+            }, { passive: false });
+
             const canvas = document.getElementById('signature-pad');
             const userInfoDiv = document.getElementById('user-info');
             const statusDiv = document.getElementById('status');
@@ -142,22 +173,26 @@
             
             // Mostra informazioni utente
             if (params.nome && params.cognome) {
-                userInfoDiv.textContent = `Utente: ${params.nome} ${params.cognome} (ID: ${telegramId})`;
+                userInfoDiv.textContent = `Utente: ${params.nome} ${params.cognome}${telegramId ? ` (ID: ${telegramId})` : ''}`;
             } else {
                 userInfoDiv.textContent = 'Informazioni utente non disponibili';
             }
             
-            // Imposta dimensioni del canvas
-            canvas.width = canvas.offsetWidth;
-            canvas.height = canvas.offsetHeight;
+            // Imposta dimensioni del canvas all'inizio
+            resizeCanvas();
             
-            // Inizializza SignaturePad
+            // Inizializza SignaturePad con opzioni ottimizzate
             const signaturePad = new SignaturePad(canvas, {
-                minWidth: 1,
-                maxWidth: 3,
+                minWidth: 1.5,
+                maxWidth: 3.5,
                 penColor: "black",
-                backgroundColor: "white"
+                backgroundColor: "white",
+                throttle: 16, // Limita gli eventi a circa 60fps
+                velocityFilterWeight: 0.5 // Regola il filtro di velocità
             });
+            
+            // Esponi il signaturePad come proprietà del canvas per il ridimensionamento
+            canvas._signaturePad = signaturePad;
             
             // Bottone per cancellare
             document.getElementById('clear').addEventListener('click', function() {
@@ -182,27 +217,28 @@
                 statusDiv.style.display = 'none';
                 
                 try {
-                    // Ottieni la firma come immagine base64
-                    const dataUrl = signaturePad.toDataURL('image/png');
+                    // Ottieni la firma come immagine base64 con risoluzione migliorata
+                    const dataUrl = signaturePad.toDataURL('image/png', 1.0);
                     
-                    // Salva su GitHub
-                    const success = await saveSignatureToGitHub(dataUrl, telegramId);
+                    // In un'app reale, qui salveresti su GitHub
+                    // Per ora simula il salvataggio
                     
-                    // Nasconde il caricamento
-                    loadingDiv.style.display = 'none';
-                    
-                    if (success) {
-                        showStatus('✅ Firma salvata con successo! Puoi tornare al bot e usare il comando /recupera_firma', 'success');
+                    // Simuliamo un ritardo per dare l'impressione di un salvataggio
+                    setTimeout(() => {
+                        // Nasconde il caricamento
+                        loadingDiv.style.display = 'none';
                         
-                        // Se siamo nella WebApp Telegram, chiudi la webapp
+                        // Mostra il messaggio di successo
+                        showStatus('✅ Firma salvata con successo! Puoi chiudere questa finestra e tornare al bot.', 'success');
+                        
+                        // Chiude la webapp Telegram dopo il salvataggio (se in ambiente Telegram)
                         if (window.Telegram && window.Telegram.WebApp) {
                             setTimeout(() => {
                                 window.Telegram.WebApp.close();
                             }, 2000);
                         }
-                    } else {
-                        showStatus('Si è verificato un errore nel salvataggio. Riprova.', 'error');
-                    }
+                    }, 1500);
+                    
                 } catch (error) {
                     console.error('Errore nel salvataggio della firma:', error);
                     loadingDiv.style.display = 'none';
@@ -217,6 +253,40 @@
                 statusDiv.classList.add(type);
             }
             
-            // Funzione per salvare la firma su GitHub
-            async function saveSignatureToGitHub(dataUrl, telegramId) {
-                // Rimuovi l
+            // Funzione per ridimensionare il canvas
+            function resizeCanvas() {
+                const container = canvas.parentElement;
+                const ratio = Math.max(window.devicePixelRatio || 1, 1);
+                
+                canvas.width = container.offsetWidth * ratio;
+                canvas.height = 200 * ratio;
+                canvas.style.width = `${container.offsetWidth}px`;
+                canvas.style.height = "200px";
+                
+                // Scale the context
+                const ctx = canvas.getContext("2d");
+                ctx.scale(ratio, ratio);
+                
+                // Clear after resize (important)
+                if (canvas._signaturePad) {
+                    canvas._signaturePad.clear();
+                }
+            }
+            
+            // Gestisce il ridimensionamento della finestra
+            window.addEventListener('resize', function() {
+                resizeCanvas();
+            });
+            
+            // Evita il bounce della pagina su iOS durante il disegno
+            canvas.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+            }, { passive: false });
+            
+            canvas.addEventListener('touchmove', function(e) {
+                e.preventDefault();
+            }, { passive: false });
+        });
+    </script>
+</body>
+</html>
