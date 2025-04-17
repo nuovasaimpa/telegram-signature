@@ -30,27 +30,31 @@ module.exports = async (req, res) => {
     // Genera nome file univoco
     const fileName = `firma_${telegramId}_${Date.now()}.png`;
     
-    // Crea formData per invio a Telegram
-    const formData = new FormData();
-    const blobData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
-    const photoBlob = new Blob([blobData], { type: 'image/png' });
+    // Converti base64 in buffer
+    const imageBuffer = Buffer.from(base64Data, 'base64');
     
+    // Prepara FormData per Telegram
+    const formData = new FormData();
     formData.append('chat_id', telegramId);
-    formData.append('photo', photoBlob, fileName);
+    formData.append('photo', new File([imageBuffer], fileName, { type: 'image/png' }));
     formData.append('caption', 'La tua firma è stata generata. Per favore, invia questa immagine al bot per confermarla.');
     
     // Invia a Telegram
     if (botToken) {
-      await axios.post(`https://api.telegram.org/bot${botToken}/sendPhoto`, formData);
+      await axios.post(`https://api.telegram.org/bot${botToken}/sendPhoto`, formData, {
+        headers: formData.getHeaders()
+      });
       
       // Notifica admin se specificato
       if (notifyAdmin && notifyAdmin !== telegramId) {
         const adminFormData = new FormData();
         adminFormData.append('chat_id', notifyAdmin);
-        adminFormData.append('photo', photoBlob, fileName);
+        adminFormData.append('photo', new File([imageBuffer], fileName, { type: 'image/png' }));
         adminFormData.append('caption', `Nuova firma ricevuta dall'utente ${telegramId}`);
         
-        await axios.post(`https://api.telegram.org/bot${botToken}/sendPhoto`, adminFormData);
+        await axios.post(`https://api.telegram.org/bot${botToken}/sendPhoto`, adminFormData, {
+          headers: adminFormData.getHeaders()
+        });
       }
     }
     
