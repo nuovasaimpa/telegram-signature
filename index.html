@@ -77,6 +77,24 @@
             color: #721c24;
             display: block;
         }
+        .loading {
+            display: none;
+            margin-top: 15px;
+            text-align: center;
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #3498db;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
@@ -89,6 +107,10 @@
         <div class="buttons">
             <button id="clear">Cancella</button>
             <button id="save">Salva Firma</button>
+        </div>
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Salvataggio in corso...</p>
         </div>
         <div class="status" id="status"></div>
     </div>
@@ -113,11 +135,14 @@
             const canvas = document.getElementById('signature-pad');
             const userInfoDiv = document.getElementById('user-info');
             const statusDiv = document.getElementById('status');
+            const loadingDiv = document.getElementById('loading');
             const params = getUrlParams();
+            
+            let telegramId = params.id || '';
             
             // Mostra informazioni utente
             if (params.nome && params.cognome) {
-                userInfoDiv.textContent = `Utente: ${params.nome} ${params.cognome}`;
+                userInfoDiv.textContent = `Utente: ${params.nome} ${params.cognome} (ID: ${telegramId})`;
             } else {
                 userInfoDiv.textContent = 'Informazioni utente non disponibili';
             }
@@ -147,23 +172,40 @@
                     return;
                 }
                 
+                if (!telegramId) {
+                    showStatus('ID utente mancante. Impossibile salvare la firma.', 'error');
+                    return;
+                }
+                
+                // Mostra il caricamento
+                loadingDiv.style.display = 'block';
+                statusDiv.style.display = 'none';
+                
                 try {
                     // Ottieni la firma come immagine base64
                     const dataUrl = signaturePad.toDataURL('image/png');
                     
-                    // Invia la firma a GitHub usando l'API GitHub
-                    const success = await saveSignatureToGitHub(dataUrl, params);
+                    // Salva su GitHub
+                    const success = await saveSignatureToGitHub(dataUrl, telegramId);
+                    
+                    // Nasconde il caricamento
+                    loadingDiv.style.display = 'none';
                     
                     if (success) {
-                        showStatus('Firma salvata con successo! Puoi chiudere questa finestra.', 'success');
+                        showStatus('✅ Firma salvata con successo! Puoi tornare al bot e usare il comando /recupera_firma', 'success');
                         
-                        // Invia i dati a Telegram Web App
+                        // Se siamo nella WebApp Telegram, chiudi la webapp
                         if (window.Telegram && window.Telegram.WebApp) {
-                            window.Telegram.WebApp.sendData(dataUrl);
+                            setTimeout(() => {
+                                window.Telegram.WebApp.close();
+                            }, 2000);
                         }
+                    } else {
+                        showStatus('Si è verificato un errore nel salvataggio. Riprova.', 'error');
                     }
                 } catch (error) {
                     console.error('Errore nel salvataggio della firma:', error);
+                    loadingDiv.style.display = 'none';
                     showStatus('Errore nel salvataggio della firma. Riprova.', 'error');
                 }
             });
@@ -176,36 +218,5 @@
             }
             
             // Funzione per salvare la firma su GitHub
-            async function saveSignatureToGitHub(dataUrl, params) {
-                const telegramId = params.id || 'unknown';
-                const nome = params.nome || '';
-                const cognome = params.cognome || '';
-                
-                // Per telegrm WebApp, non salviamo sul repo ma restituiamo i dati
-                if (window.Telegram && window.Telegram.WebApp) {
-                    return true;
-                }
-                
-                // Implementazione per il salvataggio diretto su GitHub
-                // In questo caso, inviamo direttamente i dati a Telegram
-                return true;
-            }
-        });
-        
-        // Gestisce il ridimensionamento della finestra
-        window.addEventListener('resize', function() {
-            const canvas = document.getElementById('signature-pad');
-            if (canvas) {
-                // Ridimensiona il canvas mantenendo il contenuto
-                const signaturePad = canvas._signaturePad;
-                if (signaturePad) {
-                    const data = signaturePad.toData();
-                    canvas.width = canvas.offsetWidth;
-                    canvas.height = canvas.offsetHeight;
-                    signaturePad.fromData(data);
-                }
-            }
-        });
-    </script>
-</body>
-</html>
+            async function saveSignatureToGitHub(dataUrl, telegramId) {
+                // Rimuovi l
