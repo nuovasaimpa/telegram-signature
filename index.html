@@ -34,7 +34,7 @@
             margin-bottom: 15px;
             border: 1px solid #ccc;
             border-radius: 5px;
-            overflow: hidden; /* Prevent canvas overflow */
+            overflow: hidden;
         }
         #signature-pad {
             touch-action: none; /* Important for proper touch handling */
@@ -47,6 +47,10 @@
             display: flex;
             justify-content: space-between;
             margin-bottom: 15px;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
         }
         button {
             padding: 10px 15px;
@@ -66,6 +70,12 @@
         }
         #clear:hover {
             background-color: #c0392b;
+        }
+        #download {
+            background-color: #27ae60;
+        }
+        #download:hover {
+            background-color: #219955;
         }
         .user-info {
             margin-bottom: 15px;
@@ -92,29 +102,34 @@
             color: #721c24;
             display: block;
         }
-        .loading {
-            display: none;
-            margin-top: 15px;
-            text-align: center;
-        }
-        .spinner {
-            border: 4px solid rgba(0, 0, 0, 0.1);
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            border-left-color: #3498db;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 10px;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        .status.info {
+            background-color: #e3f2fd;
+            color: #0c5460;
+            display: block;
         }
         .instruction {
             color: #7f8c8d;
             text-align: center;
             font-size: 14px;
             margin-bottom: 10px;
+        }
+        .instructions-container {
+            margin-top: 20px;
+            padding: 10px 15px;
+            background-color: #fffde7;
+            border-left: 4px solid #fbc02d;
+            border-radius: 0 5px 5px 0;
+        }
+        .instructions-container h3 {
+            margin-top: 0;
+            color: #795548;
+        }
+        .instructions-container ol {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .instructions-container li {
+            margin-bottom: 8px;
         }
     </style>
 </head>
@@ -130,13 +145,21 @@
         </div>
         <div class="buttons">
             <button id="clear">Cancella</button>
-            <button id="save">Salva Firma</button>
-        </div>
-        <div class="loading" id="loading">
-            <div class="spinner"></div>
-            <p>Salvataggio in corso...</p>
+            <div class="button-group">
+                <button id="download">Scarica Firma</button>
+            </div>
         </div>
         <div class="status" id="status"></div>
+        
+        <div class="instructions-container">
+            <h3>Istruzioni:</h3>
+            <ol>
+                <li>Disegna la tua firma nel campo sopra</li>
+                <li>Premi "Scarica Firma" per salvare l'immagine</li>
+                <li>Torna al bot Telegram e invia l'immagine scaricata</li>
+                <li>Una volta inviata l'immagine, la firma verrà registrata</li>
+            </ol>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.5/dist/signature_pad.umd.min.js"></script>
@@ -166,14 +189,15 @@
             const canvas = document.getElementById('signature-pad');
             const userInfoDiv = document.getElementById('user-info');
             const statusDiv = document.getElementById('status');
-            const loadingDiv = document.getElementById('loading');
             const params = getUrlParams();
             
             let telegramId = params.id || '';
+            let nome = params.nome || '';
+            let cognome = params.cognome || '';
             
             // Mostra informazioni utente
-            if (params.nome && params.cognome) {
-                userInfoDiv.textContent = `Utente: ${params.nome} ${params.cognome}${telegramId ? ` (ID: ${telegramId})` : ''}`;
+            if (nome && cognome) {
+                userInfoDiv.textContent = `Utente: ${nome} ${cognome}${telegramId ? ` (ID: ${telegramId})` : ''}`;
             } else {
                 userInfoDiv.textContent = 'Informazioni utente non disponibili';
             }
@@ -200,49 +224,39 @@
                 statusDiv.style.display = 'none';
             });
             
-            // Bottone per salvare
-            document.getElementById('save').addEventListener('click', async function() {
+            // Bottone per scaricare
+            document.getElementById('download').addEventListener('click', function() {
                 if (signaturePad.isEmpty()) {
-                    showStatus('Per favore, disegna la tua firma prima di salvare.', 'error');
+                    showStatus('Per favore, disegna la tua firma prima di scaricare.', 'error');
                     return;
                 }
                 
-                if (!telegramId) {
-                    showStatus('ID utente mancante. Impossibile salvare la firma.', 'error');
-                    return;
-                }
+                // Genera un nome file composto da ID utente e timestamp
+                const fileName = `firma_${telegramId || 'utente'}_${Date.now()}.png`;
                 
-                // Mostra il caricamento
-                loadingDiv.style.display = 'block';
-                statusDiv.style.display = 'none';
+                // Ottieni l'immagine come data URL
+                const dataUrl = signaturePad.toDataURL('image/png');
                 
-                try {
-                    // Ottieni la firma come immagine base64 con risoluzione migliorata
-                    const dataUrl = signaturePad.toDataURL('image/png', 1.0);
-                    
-                    // In un'app reale, qui salveresti su GitHub
-                    // Per ora simula il salvataggio
-                    
-                    // Simuliamo un ritardo per dare l'impressione di un salvataggio
+                // Crea un link temporaneo per il download
+                const link = document.createElement('a');
+                link.href = dataUrl;
+                link.download = fileName;
+                
+                // Aggiungi il link al DOM e clicca automaticamente
+                document.body.appendChild(link);
+                link.click();
+                
+                // Rimuovi il link dal DOM
+                document.body.removeChild(link);
+                
+                // Mostra messaggio di successo con istruzioni
+                showStatus('✅ Firma scaricata! Ora torna al bot Telegram e invia questa immagine.', 'success');
+                
+                // Se siamo in Telegram WebApp, informa che dobbiamo chiudere manualmente
+                if (window.Telegram && window.Telegram.WebApp) {
                     setTimeout(() => {
-                        // Nasconde il caricamento
-                        loadingDiv.style.display = 'none';
-                        
-                        // Mostra il messaggio di successo
-                        showStatus('✅ Firma salvata con successo! Puoi chiudere questa finestra e tornare al bot.', 'success');
-                        
-                        // Chiude la webapp Telegram dopo il salvataggio (se in ambiente Telegram)
-                        if (window.Telegram && window.Telegram.WebApp) {
-                            setTimeout(() => {
-                                window.Telegram.WebApp.close();
-                            }, 2000);
-                        }
-                    }, 1500);
-                    
-                } catch (error) {
-                    console.error('Errore nel salvataggio della firma:', error);
-                    loadingDiv.style.display = 'none';
-                    showStatus('Errore nel salvataggio della firma. Riprova.', 'error');
+                        showStatus('Torna al bot Telegram e invia l\'immagine della firma appena scaricata', 'info');
+                    }, 3000);
                 }
             });
             
