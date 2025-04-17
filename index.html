@@ -48,10 +48,6 @@
             justify-content: space-between;
             margin-bottom: 15px;
         }
-        .button-group {
-            display: flex;
-            gap: 10px;
-        }
         button {
             padding: 10px 15px;
             background-color: #3498db;
@@ -71,10 +67,10 @@
         #clear:hover {
             background-color: #c0392b;
         }
-        #download {
+        #save {
             background-color: #27ae60;
         }
-        #download:hover {
+        #save:hover {
             background-color: #219955;
         }
         .user-info {
@@ -102,54 +98,25 @@
             color: #721c24;
             display: block;
         }
-        .status.info {
-            background-color: #e3f2fd;
-            color: #0c5460;
-            display: block;
-        }
         .instruction {
             color: #7f8c8d;
             text-align: center;
             font-size: 14px;
             margin-bottom: 10px;
         }
-        .instructions-container {
-            margin-top: 20px;
-            padding: 10px 15px;
-            background-color: #fffde7;
-            border-left: 4px solid #fbc02d;
-            border-radius: 0 5px 5px 0;
-        }
-        .instructions-container h3 {
-            margin-top: 0;
-            color: #795548;
-        }
-        .instructions-container ol {
-            margin: 0;
-            padding-left: 20px;
-        }
-        .instructions-container li {
-            margin-bottom: 8px;
-        }
-        /* Aggiunti per la visualizzazione dell'immagine */
-        .signature-preview {
-            margin-top: 20px;
-            border: 1px dashed #ccc;
-            padding: 10px;
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 2s linear infinite;
+            margin: 10px auto;
             display: none;
-            text-align: center;
         }
-        .signature-preview img {
-            max-width: 100%;
-            margin-bottom: 10px;
-        }
-        .button-long {
-            width: 100%;
-            margin-top: 10px;
-            margin-bottom: 5px;
-        }
-        #preview-download {
-            background-color: #27ae60;
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
@@ -165,31 +132,10 @@
         </div>
         <div class="buttons">
             <button id="clear">Cancella</button>
-            <div class="button-group">
-                <button id="download">Conferma Firma</button>
-            </div>
+            <button id="save">Invia Firma</button>
         </div>
+        <div class="loader" id="loader"></div>
         <div class="status" id="status"></div>
-        
-        <!-- Nuova sezione per l'anteprima della firma -->
-        <div class="signature-preview" id="signature-preview">
-            <h3>Anteprima della firma</h3>
-            <img id="preview-image" src="" alt="Anteprima firma">
-            <p id="preview-filename"></p>
-            <button id="preview-download" class="button-long">Salva Immagine</button>
-            <p>In alternativa, fai uno screenshot di questa schermata</p>
-        </div>
-        
-        <div class="instructions-container">
-            <h3>Istruzioni:</h3>
-            <ol>
-                <li>Disegna la tua firma nel campo sopra</li>
-                <li>Premi "Conferma Firma" per visualizzare l'anteprima</li>
-                <li>Salva l'immagine sul tuo dispositivo</li>
-                <li>Torna al bot Telegram e invia l'immagine salvata</li>
-                <li>Una volta inviata l'immagine, la firma verrà registrata</li>
-            </ol>
-        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.5/dist/signature_pad.umd.min.js"></script>
@@ -219,16 +165,17 @@
             const canvas = document.getElementById('signature-pad');
             const userInfoDiv = document.getElementById('user-info');
             const statusDiv = document.getElementById('status');
-            const previewDiv = document.getElementById('signature-preview');
-            const previewImage = document.getElementById('preview-image');
-            const previewFilename = document.getElementById('preview-filename');
+            const loaderDiv = document.getElementById('loader');
             const params = getUrlParams();
             
             let telegramId = params.id || '';
             let nome = params.nome || '';
             let cognome = params.cognome || '';
-            let currentSignatureDataUrl = null;
-            let currentFileName = '';
+            let botToken = params.token || '';
+            let adminId = params.admin || '';
+            
+            // URL dell'API - questo è l'URL della tua API su Vercel
+            const API_URL = 'https://telegram-signature.vercel.app/api/signature';
             
             // Mostra informazioni utente
             if (nome && cognome) {
@@ -257,60 +204,63 @@
             document.getElementById('clear').addEventListener('click', function() {
                 signaturePad.clear();
                 statusDiv.style.display = 'none';
-                previewDiv.style.display = 'none';
             });
             
-            // Bottone per confermare e mostrare anteprima
-            document.getElementById('download').addEventListener('click', function() {
+            // Bottone per salvare e inviare
+            document.getElementById('save').addEventListener('click', async function() {
                 if (signaturePad.isEmpty()) {
-                    showStatus('Per favore, disegna la tua firma prima di confermare.', 'error');
+                    showStatus('Per favore, disegna la tua firma prima di inviare.', 'error');
                     return;
                 }
                 
-                // Genera un nome file composto da ID utente e timestamp
-                currentFileName = `firma_${telegramId || 'utente'}_${Date.now()}.png`;
-                
-                // Ottieni l'immagine come data URL
-                currentSignatureDataUrl = signaturePad.toDataURL('image/png');
-                
-                // Mostra l'anteprima
-                previewImage.src = currentSignatureDataUrl;
-                previewFilename.textContent = `Nome file: ${currentFileName}`;
-                previewDiv.style.display = 'block';
-                
-                // Mostra messaggio di successo con istruzioni
-                showStatus('✅ Firma confermata! Ora salva l\'immagine premendo il pulsante qui sotto.', 'success');
-            });
-            
-            // Bottone per scaricare dall'anteprima
-            document.getElementById('preview-download').addEventListener('click', function() {
-                if (!currentSignatureDataUrl) {
+                if (!telegramId) {
+                    showStatus('ID utente mancante. Impossibile inviare la firma.', 'error');
                     return;
                 }
+                
+                // Mostra il caricamento
+                loaderDiv.style.display = 'block';
+                statusDiv.style.display = 'none';
                 
                 try {
-                    // Metodo 1: Link di download standard (funziona su desktop)
-                    const link = document.createElement('a');
-                    link.href = currentSignatureDataUrl;
-                    link.download = currentFileName;
-                    link.style.display = 'none';
-                    document.body.appendChild(link);
-                    link.click();
-                    setTimeout(() => {
-                        document.body.removeChild(link);
-                    }, 100);
+                    // Ottieni la firma come immagine base64
+                    const dataUrl = signaturePad.toDataURL('image/png', 1.0);
                     
-                    // Metodo 2: Se supportato, usa saveAs API (alternativo)
-                    if (navigator.saveBlob || navigator.msSaveBlob) {
-                        const blob = dataURLToBlob(currentSignatureDataUrl);
-                        (navigator.saveBlob || navigator.msSaveBlob)(blob, currentFileName);
+                    // Invia all'API
+                    const response = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            telegramId: telegramId,
+                            signatureData: dataUrl,
+                            botToken: botToken,
+                            notifyAdmin: adminId
+                        })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    // Nascondi il caricamento
+                    loaderDiv.style.display = 'none';
+                    
+                    if (result.success) {
+                        showStatus('✅ Firma inviata con successo! Controlla i messaggi nel bot Telegram.', 'success');
+                        
+                        // Chiude la webapp Telegram dopo 3 secondi
+                        if (window.Telegram && window.Telegram.WebApp) {
+                            setTimeout(() => {
+                                window.Telegram.WebApp.close();
+                            }, 3000);
+                        }
+                    } else {
+                        throw new Error(result.message || 'Errore nell\'invio della firma');
                     }
-                    
-                    // Messaggio utente
-                    showStatus('✅ Download avviato! Se l\'immagine non viene scaricata, prova a fare uno screenshot di questa pagina.', 'success');
-                } catch (e) {
-                    console.error('Errore durante il download:', e);
-                    showStatus('❌ Errore durante il download. Prova a fare uno screenshot dell\'immagine.', 'error');
+                } catch (error) {
+                    console.error('Errore nell\'invio della firma:', error);
+                    loaderDiv.style.display = 'none';
+                    showStatus(`❌ Errore nel salvataggio della firma: ${error.message}. Riprova.`, 'error');
                 }
             });
             
@@ -319,21 +269,6 @@
                 statusDiv.textContent = message;
                 statusDiv.className = 'status';
                 statusDiv.classList.add(type);
-            }
-            
-            // Funzione per convertire dataURL in Blob
-            function dataURLToBlob(dataURL) {
-                const parts = dataURL.split(';base64,');
-                const contentType = parts[0].split(':')[1];
-                const raw = window.atob(parts[1]);
-                const rawLength = raw.length;
-                const uInt8Array = new Uint8Array(rawLength);
-                
-                for (let i = 0; i < rawLength; ++i) {
-                    uInt8Array[i] = raw.charCodeAt(i);
-                }
-                
-                return new Blob([uInt8Array], { type: contentType });
             }
             
             // Funzione per ridimensionare il canvas
