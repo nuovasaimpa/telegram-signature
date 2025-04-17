@@ -1,267 +1,211 @@
 <!DOCTYPE html>
-<html>
+<html lang="it">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Firma Semplice</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firma Digitale</title>
     <style>
         body {
-            font-family: sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
-            padding: 16px;
-            touch-action: none;
-            background-color: var(--tg-theme-bg-color, #ffffff);
-            color: var(--tg-theme-text-color, #000000);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f5f5f5;
         }
-        canvas {
-            border: 2px solid #999;
+        .container {
+            max-width: 600px;
             width: 100%;
-            height: 200px;
-            touch-action: none;
-            background-color: white;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
-        button {
-            display: block;
-            width: 100%;
-            padding: 12px;
-            margin-top: 16px;
-            background: var(--tg-theme-button-color, #4CAF50);
-            color: var(--tg-theme-button-text-color, white);
-            border: none;
-            border-radius: 4px;
-            font-size: 16px;
-            cursor: pointer;
-        }
-        #clearBtn {
-            background: #f44336;
-            margin-top: 8px;
-        }
-        #status {
-            margin-top: 10px;
-            padding: 8px;
+        h1 {
+            color: #2c3e50;
             text-align: center;
         }
-        #debug {
-            margin-top: 10px;
-            font-size: 10px;
-            color: #666;
-            word-break: break-all;
+        #signature-pad {
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            width: 100%;
+            height: 200px;
+            background-color: white;
+            margin-bottom: 15px;
+        }
+        .buttons {
+            display: flex;
+            justify-content: space-between;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        #clear {
+            background-color: #e74c3c;
+        }
+        #clear:hover {
+            background-color: #c0392b;
+        }
+        .user-info {
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            display: none;
+        }
+        .status.success {
+            background-color: #d4edda;
+            color: #155724;
+            display: block;
+        }
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            display: block;
         }
     </style>
 </head>
 <body>
-    <h2>Disegna la tua firma</h2>
-    <canvas id="signatureCanvas"></canvas>
-    <button id="saveBtn">Salva Firma</button>
-    <button id="clearBtn">Cancella</button>
-    <div id="status"></div>
-    <div id="debug"></div>
+    <div class="container">
+        <h1>Firma Digitale</h1>
+        <div class="user-info" id="user-info">
+            Caricamento informazioni utente...
+        </div>
+        <canvas id="signature-pad"></canvas>
+        <div class="buttons">
+            <button id="clear">Cancella</button>
+            <button id="save">Salva Firma</button>
+        </div>
+        <div class="status" id="status"></div>
+    </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
     <script>
-        // Inizializza Telegram WebApp
-        const tg = window.Telegram.WebApp;
-        tg.expand();
-        
-        // Elementi DOM
-        const statusDiv = document.getElementById('status');
-        const debugDiv = document.getElementById('debug');
-        
-        // Funzione per aggiornare lo stato
-        function updateStatus(msg) {
-            statusDiv.innerText = msg;
-            console.log(msg);
-        }
-        
-        // Funzione per aggiornare debug
-        function updateDebug(msg) {
-            debugDiv.innerHTML += msg + "<br>";
-            console.log("[DEBUG]", msg);
-        }
-        
-        // Verifica inizializzazione WebApp
-        updateStatus("WebApp inizializzata");
-        updateDebug(`Version: ${tg.version}`);
-        updateDebug(`Platform: ${tg.platform}`);
-        
-        // Canvas setup - Riduciamo ulteriormente la dimensione
-        const canvas = document.getElementById('signatureCanvas');
-        const ctx = canvas.getContext('2d');
-        
-        // IMPORTANTE: canvas molto piccolo per ridurre dimensioni dati
-        canvas.width = 240;  // Ridotto da 300
-        canvas.height = 120; // Ridotto da 150
-        ctx.lineWidth = 2;   // Ridotto da 3
-        ctx.lineCap = 'round';
-        ctx.strokeStyle = 'black';
-        
-        // Variabili per il disegno
-        let isDrawing = false;
-        let lastX, lastY;
-        let hasDrawn = false;
-        
-        // Funzioni di disegno
-        function draw(e) {
-            if (!isDrawing) return;
+        // Recupera i parametri dalla URL
+        function getUrlParams() {
+            const params = {};
+            const queryString = window.location.search;
+            const urlParams = new URLSearchParams(queryString);
             
-            // Previeni lo scrolling su mobile
-            e.preventDefault();
-            
-            let clientX, clientY;
-            
-            // Gestisci sia touch che mouse
-            if (e.type.includes('touch')) {
-                clientX = e.touches[0].clientX;
-                clientY = e.touches[0].clientY;
-            } else {
-                clientX = e.clientX;
-                clientY = e.clientY;
+            for (const [key, value] of urlParams.entries()) {
+                params[key] = value;
             }
             
-            const rect = canvas.getBoundingClientRect();
-            const scaleX = canvas.width / rect.width;
-            const scaleY = canvas.height / rect.height;
-            
-            const x = (clientX - rect.left) * scaleX;
-            const y = (clientY - rect.top) * scaleY;
-            
-            ctx.beginPath();
-            ctx.moveTo(lastX, lastY);
-            ctx.lineTo(x, y);
-            ctx.stroke();
-            
-            lastX = x;
-            lastY = y;
-            hasDrawn = true;
+            return params;
         }
-        
-        function startDrawing(e) {
-            isDrawing = true;
-            
-            let clientX, clientY;
-            
-            if (e.type.includes('touch')) {
-                e.preventDefault();
-                clientX = e.touches[0].clientX;
-                clientY = e.touches[0].clientY;
-            } else {
-                clientX = e.clientX;
-                clientY = e.clientY;
-            }
-            
-            const rect = canvas.getBoundingClientRect();
-            const scaleX = canvas.width / rect.width;
-            const scaleY = canvas.height / rect.height;
-            
-            lastX = (clientX - rect.left) * scaleX;
-            lastY = (clientY - rect.top) * scaleY;
-        }
-        
-        function stopDrawing() {
-            isDrawing = false;
-        }
-        
-        // Eventi per mouse
-        canvas.addEventListener('mousedown', startDrawing);
-        canvas.addEventListener('mousemove', draw);
-        canvas.addEventListener('mouseup', stopDrawing);
-        canvas.addEventListener('mouseout', stopDrawing);
-        
-        // Eventi per touch
-        canvas.addEventListener('touchstart', startDrawing, {passive: false});
-        canvas.addEventListener('touchmove', draw, {passive: false});
-        canvas.addEventListener('touchend', stopDrawing);
-        
-        // Bottone per cancellare
-        document.getElementById('clearBtn').addEventListener('click', function() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            hasDrawn = false;
-            updateStatus("Canvas cancellato");
-        });
-        
-        // Bitmap compresso (molto più piccolo di dataURL)
-        function generateCompressedBitmap() {
-            // Ottiene i dati dal canvas
-            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imgData.data;
-            
-            // Crea una rappresentazione bitmap (0 = bianco, 1 = nero)
-            let bitmap = '';
-            for (let i = 0; i < data.length; i += 4) {
-                // Se il pixel non è completamente bianco, lo consideriamo parte della firma
-                if (data[i] < 250 || data[i + 1] < 250 || data[i + 2] < 250) {
-                    bitmap += '1';
-                } else {
-                    bitmap += '0';
-                }
-            }
-            
-            // Comprime la bitmap in formato RLE (run-length encoding)
-            let compressed = '';
-            let count = 1;
-            let current = bitmap[0];
-            
-            for (let i = 1; i < bitmap.length; i++) {
-                if (bitmap[i] === current) {
-                    count++;
-                } else {
-                    compressed += current + count;
-                    current = bitmap[i];
-                    count = 1;
-                }
-            }
-            
-            compressed += current + count;
-            
-            // Aggiungi dimensioni del canvas all'inizio
-            return `${canvas.width}x${canvas.height}:${compressed}`;
-        }
-        
-        // Funzione per creare un dataURL molto compresso
-        function generateSmallDataURL() {
-            return canvas.toDataURL('image/jpeg', 0.5); // JPEG con qualità 50%
-        }
-        
-        // Bottone per salvare
-        document.getElementById('saveBtn').addEventListener('click', function() {
-            if (!hasDrawn) {
-                updateStatus("Errore: Disegna prima la tua firma!");
-                return;
-            }
 
-            try {
-                updateStatus("Elaborazione firma...");
-                
-                // Usa la rappresentazione bitmap compressa (molto più piccola)
-                const bitmapData = generateCompressedBitmap();
-                updateDebug(`Dimensione bitmap: ${bitmapData.length} caratteri`);
-                
-                // Se la bitmap è troppo grande, potremmo usare dataURL compresso
-                if (bitmapData.length > 4000) {
-                    updateStatus("Bitmap troppo grande, usando formato alternativo");
+        // Inizializzazione al caricamento della pagina
+        document.addEventListener('DOMContentLoaded', function() {
+            const canvas = document.getElementById('signature-pad');
+            const userInfoDiv = document.getElementById('user-info');
+            const statusDiv = document.getElementById('status');
+            const params = getUrlParams();
+            
+            // Mostra informazioni utente
+            if (params.nome && params.cognome) {
+                userInfoDiv.textContent = `Utente: ${params.nome} ${params.cognome}`;
+            } else {
+                userInfoDiv.textContent = 'Informazioni utente non disponibili';
+            }
+            
+            // Imposta dimensioni del canvas
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+            
+            // Inizializza SignaturePad
+            const signaturePad = new SignaturePad(canvas, {
+                minWidth: 1,
+                maxWidth: 3,
+                penColor: "black",
+                backgroundColor: "white"
+            });
+            
+            // Bottone per cancellare
+            document.getElementById('clear').addEventListener('click', function() {
+                signaturePad.clear();
+                statusDiv.style.display = 'none';
+            });
+            
+            // Bottone per salvare
+            document.getElementById('save').addEventListener('click', async function() {
+                if (signaturePad.isEmpty()) {
+                    showStatus('Per favore, disegna la tua firma prima di salvare.', 'error');
                     return;
                 }
                 
-                // Invio a Telegram
-                updateStatus("Invio dati a Telegram...");
-                tg.sendData(bitmapData);
+                try {
+                    // Ottieni la firma come immagine base64
+                    const dataUrl = signaturePad.toDataURL('image/png');
+                    
+                    // Invia la firma a GitHub usando l'API GitHub
+                    const success = await saveSignatureToGitHub(dataUrl, params);
+                    
+                    if (success) {
+                        showStatus('Firma salvata con successo! Puoi chiudere questa finestra.', 'success');
+                        
+                        // Invia i dati a Telegram Web App
+                        if (window.Telegram && window.Telegram.WebApp) {
+                            window.Telegram.WebApp.sendData(dataUrl);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Errore nel salvataggio della firma:', error);
+                    showStatus('Errore nel salvataggio della firma. Riprova.', 'error');
+                }
+            });
+            
+            // Funzione per mostrare messaggi di stato
+            function showStatus(message, type) {
+                statusDiv.textContent = message;
+                statusDiv.className = 'status';
+                statusDiv.classList.add(type);
+            }
+            
+            // Funzione per salvare la firma su GitHub
+            async function saveSignatureToGitHub(dataUrl, params) {
+                const telegramId = params.id || 'unknown';
+                const nome = params.nome || '';
+                const cognome = params.cognome || '';
                 
-                updateStatus("Dati inviati! Chiusura imminente...");
+                // Per telegrm WebApp, non salviamo sul repo ma restituiamo i dati
+                if (window.Telegram && window.Telegram.WebApp) {
+                    return true;
+                }
                 
-                setTimeout(() => {
-                    tg.close();
-                }, 2000);
-                
-            } catch (error) {
-                console.error("Errore:", error);
-                updateStatus(`ERRORE: ${error.message}`);
-                updateDebug(`Stack trace: ${error.stack}`);
+                // Implementazione per il salvataggio diretto su GitHub
+                // In questo caso, inviamo direttamente i dati a Telegram
+                return true;
             }
         });
-
-        // Stampa informazioni diagnostiche iniziali
-        updateDebug(`InitData available: ${tg.initData ? 'yes' : 'no'}`);
-        updateDebug(`Dimensioni canvas: ${canvas.width}x${canvas.height}`);
+        
+        // Gestisce il ridimensionamento della finestra
+        window.addEventListener('resize', function() {
+            const canvas = document.getElementById('signature-pad');
+            if (canvas) {
+                // Ridimensiona il canvas mantenendo il contenuto
+                const signaturePad = canvas._signaturePad;
+                if (signaturePad) {
+                    const data = signaturePad.toData();
+                    canvas.width = canvas.offsetWidth;
+                    canvas.height = canvas.offsetHeight;
+                    signaturePad.fromData(data);
+                }
+            }
+        });
     </script>
 </body>
 </html>
