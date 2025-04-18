@@ -4,8 +4,8 @@
   "description": "API per la gestione delle firme",
   "private": true,
   "dependencies": {
-    "axios": "^1.6.2",
-    "form-data": "^4.0.0"
+    "axios": "^1.8.4",
+    "form-data": "^4.0.2"
   },
   "engines": {
     "node": "18.x"
