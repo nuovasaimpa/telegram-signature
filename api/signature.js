@@ -54,7 +54,7 @@ module.exports = async (req, res) => {
       formData.append('chat_id', telegramId);
       
       // Aggiungi didascalia specifica che il bot riconoscerà
-      formData.append('caption', '[FIRMA-WEBAPP] Firma digitale generata automaticamente');
+      formData.append('caption', 'SALVA QUESTA IMMAGINE e INVIALA qui in chat');
       
       // Aggiungi il file come buffer
       formData.append('photo', imageBuffer, {
