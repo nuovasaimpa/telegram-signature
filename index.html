@@ -61,6 +61,10 @@
         button:hover {
             background-color: #2980b9;
         }
+        button:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
         #clear {
             background-color: #e74c3c;
         }
@@ -96,6 +100,11 @@
         .status.error {
             background-color: #f8d7da;
             color: #721c24;
+            display: block;
+        }
+        .status.warning {
+            background-color: #fff3cd;
+            color: #856404;
             display: block;
         }
         .instruction {
@@ -166,6 +175,9 @@
             const userInfoDiv = document.getElementById('user-info');
             const statusDiv = document.getElementById('status');
             const loaderDiv = document.getElementById('loader');
+            const saveButton = document.getElementById('save');
+            const clearButton = document.getElementById('clear');
+            
             const params = getUrlParams();
             
             let telegramId = params.id || '';
@@ -173,6 +185,13 @@
             let cognome = params.cognome || '';
             let botToken = params.token || '';
             let adminId = params.admin || '';
+            
+            // Verifica parametri obbligatori
+            if (!telegramId || !botToken) {
+                showStatus('Parametri mancanti. Impossibile procedere.', 'error');
+                saveButton.disabled = true;
+                return;
+            }
             
             // URL dell'API - questo è l'URL della tua API su Vercel
             const API_URL = 'https://telegram-signature.vercel.app/api/signature';
@@ -182,6 +201,7 @@
                 userInfoDiv.textContent = `Utente: ${nome} ${cognome}${telegramId ? ` (ID: ${telegramId})` : ''}`;
             } else {
                 userInfoDiv.textContent = 'Informazioni utente non disponibili';
+                showStatus('Nome e cognome mancanti. Potrebbero esserci problemi.', 'warning');
             }
             
             // Imposta dimensioni del canvas all'inizio
@@ -201,22 +221,21 @@
             canvas._signaturePad = signaturePad;
             
             // Bottone per cancellare
-            document.getElementById('clear').addEventListener('click', function() {
+            clearButton.addEventListener('click', function() {
                 signaturePad.clear();
                 statusDiv.style.display = 'none';
             });
             
             // Bottone per salvare e inviare
-            document.getElementById('save').addEventListener('click', async function() {
+            saveButton.addEventListener('click', async function() {
                 if (signaturePad.isEmpty()) {
                     showStatus('Per favore, disegna la tua firma prima di inviare.', 'error');
                     return;
                 }
                 
-                if (!telegramId) {
-                    showStatus('ID utente mancante. Impossibile inviare la firma.', 'error');
-                    return;
-                }
+                // Disabilita bottoni durante l'invio
+                saveButton.disabled = true;
+                clearButton.disabled = true;
                 
                 // Mostra il caricamento
                 loaderDiv.style.display = 'block';
@@ -225,6 +244,9 @@
                 try {
                     // Ottieni la firma come immagine base64
                     const dataUrl = signaturePad.toDataURL('image/png', 1.0);
+                    
+                    // Log per debug (solo su console)
+                    console.log('Invio firma a', telegramId);
                     
                     // Invia all'API
                     const response = await fetch(API_URL, {
@@ -236,11 +258,15 @@
                             telegramId: telegramId,
                             signatureData: dataUrl,
                             botToken: botToken,
-                            notifyAdmin: adminId,
-                            githubRepo: 'nuovasaimpa/telegram-signature',
-                            githubOwner: 'nuovasaimpa'
+                            notifyAdmin: adminId
                         })
                     });
+                    
+                    // Verifica se la risposta è ok
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || `Errore HTTP ${response.status}`);
+                    }
                     
                     const result = await response.json();
                     
@@ -257,12 +283,16 @@
                             }, 3000);
                         }
                     } else {
-                        throw new Error(result.message || 'Errore nell\'invio della firma');
+                        throw new Error(result.message || 'Errore nella risposta dal server');
                     }
                 } catch (error) {
                     console.error('Errore nell\'invio della firma:', error);
                     loaderDiv.style.display = 'none';
-                    showStatus(`❌ Errore nel salvataggio della firma: ${error.message}. Riprova.`, 'error');
+                    showStatus(`❌ Errore: ${error.message || 'Impossibile inviare la firma'}. Riprova.`, 'error');
+                    
+                    // Riabilita i bottoni
+                    saveButton.disabled = false;
+                    clearButton.disabled = false;
                 }
             });
             

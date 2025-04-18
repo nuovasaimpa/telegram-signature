@@ -1,92 +1,79 @@
+// api/signature.js
 const axios = require('axios');
-const FormData = require('form-data');
 
 module.exports = async (req, res) => {
-  // Configurazione CORS
+  // Consenti richieste CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   
+  // Gestisci le richieste OPTIONS (pre-flight)
   if (req.method === 'OPTIONS') {
     res.status(200).end();
     return;
   }
   
+  // Verifica che sia una richiesta POST
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Metodo non consentito' });
+    return res.status(405).json({ success: false, message: 'Metodo non consentito' });
   }
   
   try {
     const { telegramId, signatureData, botToken, notifyAdmin } = req.body;
     
-    if (!telegramId || !signatureData) {
-      return res.status(400).json({ error: 'Mancano parametri obbligatori' });
+    if (!telegramId || !signatureData || !botToken) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Mancano parametri obbligatori (telegramId, signatureData o botToken)' 
+      });
     }
     
-    // Estrai i dati base64 dall'URL
-    const base64Data = signatureData.split(';base64,').pop();
+    // Usa direttamente l'URL della firma per inviarla (Telegram può usare URL data)
+    const photoUrl = signatureData;
     
-    // Genera nome file univoco
-    const fileName = `firma_${telegramId}_${Date.now()}.png`;
+    // Log per debug
+    console.log(`Invio firma a utente ${telegramId} e admin ${notifyAdmin || 'nessuno'}`);
     
-    // Configura GitHub API
-    const githubToken = process.env.GITHUB_TOKEN; // Imposta questo nelle variabili di ambiente di Vercel
-    const repo = 'nome-del-tuo-repo';
-    const owner = 'tuo-username';
-    const path = `signatures/${fileName}`;
-
-    // Carica il file su GitHub
-    const githubResponse = await axios.put(
-      `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
+    // Invia la foto all'utente tramite Telegram API
+    const userResponse = await axios.post(
+      `https://api.telegram.org/bot${botToken}/sendPhoto`,
       {
-        message: `Aggiungi firma ${fileName}`,
-        content: base64Data,
-        branch: 'main' // o il branch che preferisci
-      },
-      {
-        headers: {
-          'Authorization': `token ${githubToken}`,
-          'Accept': 'application/vnd.github.v3+json'
-        }
+        chat_id: telegramId,
+        photo: photoUrl,
+        caption: 'La tua firma è stata generata. Per favore, invia questa immagine al bot per confermarla.'
       }
     );
     
-    // Invia a Telegram (opzionale)
-    if (botToken) {
-      const formData = new FormData();
-      const imageBuffer = Buffer.from(base64Data, 'base64');
-      
-      formData.append('chat_id', telegramId);
-      formData.append('photo', imageBuffer, fileName);
-      formData.append('caption', `Firma salvata su GitHub: ${path}`);
-      
-      await axios.post(`https://api.telegram.org/bot${botToken}/sendPhoto`, formData, {
-        headers: formData.getHeaders()
-      });
-      
-      // Notifica admin se specificato
-      if (notifyAdmin && notifyAdmin !== telegramId) {
-        const adminFormData = new FormData();
-        adminFormData.append('chat_id', notifyAdmin);
-        adminFormData.append('photo', imageBuffer, fileName);
-        adminFormData.append('caption', `Nuova firma salvata su GitHub per utente ${telegramId}`);
+    console.log('Risposta da Telegram (utente):', userResponse.data);
+    
+    // Notifica admin se specificato
+    if (notifyAdmin && notifyAdmin !== telegramId) {
+      try {
+        const adminResponse = await axios.post(
+          `https://api.telegram.org/bot${botToken}/sendPhoto`,
+          {
+            chat_id: notifyAdmin,
+            photo: photoUrl,
+            caption: `Nuova firma ricevuta dall'utente ${telegramId}`
+          }
+        );
         
-        await axios.post(`https://api.telegram.org/bot${botToken}/sendPhoto`, adminFormData, {
-          headers: adminFormData.getHeaders()
-        });
+        console.log('Risposta da Telegram (admin):', adminResponse.data);
+      } catch (adminError) {
+        console.error('Errore invio a admin:', adminError.message);
+        // Continuiamo anche se la notifica all'admin fallisce
       }
     }
     
     return res.status(200).json({ 
       success: true, 
-      message: 'Firma salvata su GitHub',
-      githubPath: path
+      message: 'Firma inviata con successo. Controlla i messaggi nel bot Telegram.'
     });
   } catch (error) {
-    console.error('Errore:', error.response ? error.response.data : error.message);
+    console.error('Errore completo:', error);
     return res.status(500).json({ 
-      error: 'Errore interno del server', 
-      message: error.response ? error.response.data : error.message 
+      success: false, 
+      message: `Errore interno del server: ${error.message}` 
     });
   }
 };
