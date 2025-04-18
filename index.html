@@ -142,6 +142,32 @@
             margin-top: 15px;
             display: none;
         }
+        .success-message {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 15px;
+            text-align: center;
+            font-size: 16px;
+            font-weight: 500;
+            display: none;
+        }
+        .telegram-link {
+            margin-top: 15px;
+            text-align: center;
+            display: none;
+        }
+        .telegram-button {
+            display: inline-block;
+            background-color: #0088cc;
+            color: white;
+            padding: 12px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: 500;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
@@ -162,17 +188,30 @@
         <div class="loader" id="loader"></div>
         <div class="status" id="status"></div>
         
-        <!-- Contenitore per immagine della firma -->
+        <!-- Successo -->
+        <div id="success-message" class="success-message">
+            <p>✅ La tua firma è stata inviata con successo!</p>
+            <p>Controlla i messaggi sul tuo Telegram.</p>
+        </div>
+        
+        <!-- Contenitore per immagine della firma (fallback) -->
         <img id="signature-image" class="signature-image" alt="La tua firma" />
         
-        <!-- Istruzioni per il download -->
+        <!-- Istruzioni per il download (fallback) -->
         <div id="download-instructions" class="download-instructions">
-            <p><strong>Istruzioni:</strong></p>
+            <p><strong>Istruzioni per uso manuale:</strong></p>
             <ol>
                 <li>Tieni premuto sull'immagine qui sopra</li>
                 <li>Seleziona "Salva immagine"</li>
                 <li>Invia l'immagine salvata al bot Telegram</li>
             </ol>
+        </div>
+        
+        <!-- Link per aprire Telegram -->
+        <div id="telegram-link" class="telegram-link">
+            <a href="https://t.me/" class="telegram-button" id="open-telegram">
+                Apri Telegram
+            </a>
         </div>
     </div>
 
@@ -208,6 +247,9 @@
             const clearButton = document.getElementById('clear');
             const signatureImage = document.getElementById('signature-image');
             const downloadInstructions = document.getElementById('download-instructions');
+            const successMessage = document.getElementById('success-message');
+            const telegramLink = document.getElementById('telegram-link');
+            const openTelegramButton = document.getElementById('open-telegram');
             
             const params = getUrlParams();
             
@@ -216,6 +258,13 @@
             let cognome = params.cognome || '';
             let botToken = params.token || '';
             let adminId = params.admin || '';
+            
+            // Configura il link a Telegram
+            if (telegramId) {
+                // Aggiorna l'href del link a Telegram per aprire la chat con il bot
+                const botUsername = botToken ? botToken.split(':')[0] : 'your_bot';
+                openTelegramButton.href = `https://t.me/${botUsername}`;
+            }
             
             // Verifica parametri obbligatori
             if (!telegramId || !botToken) {
@@ -257,6 +306,8 @@
                 statusDiv.style.display = 'none';
                 signatureImage.style.display = 'none';
                 downloadInstructions.style.display = 'none';
+                successMessage.style.display = 'none';
+                telegramLink.style.display = 'none';
             });
             
             // Bottone per salvare e inviare
@@ -275,6 +326,8 @@
                 statusDiv.style.display = 'none';
                 signatureImage.style.display = 'none';
                 downloadInstructions.style.display = 'none';
+                successMessage.style.display = 'none';
+                telegramLink.style.display = 'none';
                 
                 try {
                     // Ottieni la firma come immagine base64
@@ -309,29 +362,23 @@
                     loaderDiv.style.display = 'none';
                     
                     if (result.success) {
-                        showStatus('✅ Firma ricevuta con successo!', 'success');
+                        // Se l'immagine è stata inviata con successo, mostra il messaggio di successo
+                        // e il link per aprire Telegram
+                        successMessage.style.display = 'block';
+                        telegramLink.style.display = 'block';
                         
-                        // Mostra l'immagine della firma e le istruzioni per il download
-                        signatureImage.src = dataUrl;
-                        signatureImage.style.display = 'block';
-                        downloadInstructions.style.display = 'block';
+                        // Chiude la webapp Telegram dopo 3 secondi se disponibile
+                        if (window.Telegram && window.Telegram.WebApp) {
+                            setTimeout(() => {
+                                window.Telegram.WebApp.close();
+                            }, 3000);
+                        }
                         
-                        // Invia messaggi a Telegram notificando l'admin (manuale)
-                        try {
-                            // Notifica admin (se disponibile)
-                            if (adminId) {
-                                await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                        chat_id: adminId,
-                                        text: `🖋️ Nuova firma creata dall'utente ${nome} ${cognome} (ID: ${telegramId}). L'immagine verrà inviata direttamente dall'utente.`
-                                    })
-                                });
-                            }
-                        } catch (notifyError) {
-                            console.error('Errore notifica admin:', notifyError);
-                            // Non interrompe il flusso se la notifica fallisce
+                        // Se c'è stato un errore nel backend ma abbiamo ricevuto un'immagine (fallback)
+                        if (result.image) {
+                            signatureImage.src = result.image;
+                            signatureImage.style.display = 'block';
+                            downloadInstructions.style.display = 'block';
                         }
                     } else {
                         throw new Error(result.message || 'Errore nella risposta dal server');
@@ -340,6 +387,11 @@
                     console.error('Errore nell\'invio della firma:', error);
                     loaderDiv.style.display = 'none';
                     showStatus(`❌ Errore: ${error.message || 'Impossibile inviare la firma'}. Riprova.`, 'error');
+                    
+                    // Mostra l'immagine come fallback se c'è stato un errore
+                    signatureImage.src = signaturePad.toDataURL('image/png', 1.0);
+                    signatureImage.style.display = 'block';
+                    downloadInstructions.style.display = 'block';
                 }
                 
                 // Riabilita i bottoni
