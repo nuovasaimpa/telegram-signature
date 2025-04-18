@@ -1,12 +1,11 @@
 // api/test.js
 module.exports = (req, res) => {
-    console.log('API di test chiamata!');
-    res.status(200).json({
-      success: true,
-      message: 'API funzionante',
-      method: req.method,
-      query: req.query,
-      headers: req.headers,
-      timestamp: new Date().toISOString()
-    });
-  };
+  console.log('Test API chiamata!');
+  
+  res.status(200).json({
+    success: true,
+    message: 'API di test funzionante',
+    method: req.method,
+    timestamp: new Date().toISOString()
+  });
+};
