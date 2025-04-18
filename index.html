@@ -141,6 +141,7 @@
         </div>
         <div class="buttons">
             <button id="clear">Cancella</button>
+            <button id="debug" style="background-color: #9b59b6;">Test API</button>
             <button id="save">Invia Firma</button>
         </div>
         <div class="loader" id="loader"></div>
@@ -338,5 +339,50 @@
             }, { passive: false });
         });
     </script>
+    <script>
+        // Aggiungi questo al documento esistente
+        document.getElementById('debug').addEventListener('click', async function() {
+          try {
+            showStatus('Testando la connessione API...', 'warning');
+            
+            // Testa prima l'endpoint di test
+            const testResponse = await fetch('/api/test', {
+              method: 'GET'
+            });
+            
+            const testResult = await testResponse.json();
+            console.log('Risposta del test API:', testResult);
+            
+            showStatus(`Test API: ${JSON.stringify(testResult)}`, 'success');
+            
+            // Prova anche a invocare l'API di firma con dati minimi
+            const signatureResponse = await fetch('/api/signature', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                test: true,
+                telegramId: 'test',
+                signatureData: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+                botToken: 'test'
+              })
+            });
+            
+            if (signatureResponse.ok) {
+              const signatureResult = await signatureResponse.json();
+              console.log('Risposta dall\'API di firma:', signatureResult);
+              showStatus(`API firma risponde: ${JSON.stringify(signatureResult)}`, 'success');
+            } else {
+              console.error('Errore risposta API firma:', signatureResponse.status);
+              showStatus(`Errore API firma: ${signatureResponse.status}`, 'error');
+            }
+            
+          } catch (error) {
+            console.error('Errore test API:', error);
+            showStatus(`Errore test: ${error.message}`, 'error');
+          }
+        });
+      </script>
 </body>
 </html>
