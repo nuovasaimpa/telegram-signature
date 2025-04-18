@@ -1,5 +1,6 @@
 // api/signature.js
 const axios = require('axios');
+const FormData = require('form-data');
 
 module.exports = async (req, res) => {
   // Consenti richieste CORS
@@ -32,70 +33,86 @@ module.exports = async (req, res) => {
     
     // Estrai la parte base64 dalla data URL
     const base64Data = signatureData.split(',')[1];
+    // Converti in buffer binario
+    const imageBuffer = Buffer.from(base64Data, 'base64');
     
     // Log per debug
     console.log(`Invio firma a utente ${telegramId} e admin ${notifyAdmin || 'nessuno'}`);
     
     try {
-      // Ottieni l'URL del deployment corrente
-      const host = req.headers.host || 'telegram-signature.vercel.app';
-      const protocol = req.headers['x-forwarded-proto'] || 'https';
-      const baseUrl = `${protocol}://${host}`;
-      
-      // Crea un URL temporaneo per l'immagine
-      const imageUrl = `${baseUrl}/api/image?image=${encodeURIComponent(base64Data)}`;
-      
-      console.log('URL immagine generato:', imageUrl);
-      
-      // Invia l'immagine all'utente tramite Telegram API
-      const userResponse = await axios.post(
-        `https://api.telegram.org/bot${botToken}/sendPhoto`,
+      // Prima invia un messaggio di notifica
+      await axios.post(
+        `https://api.telegram.org/bot${botToken}/sendMessage`,
         {
           chat_id: telegramId,
-          photo: imageUrl,
-          caption: 'La tua firma è stata generata. Per favore, invia questa immagine al bot per confermarla.'
+          text: '✏️ Sto elaborando la tua firma digitale...'
         }
       );
       
-      console.log('Risposta da Telegram (utente):', userResponse.data);
+      // Prepara FormData per l'invio del file
+      const formData = new FormData();
+      formData.append('chat_id', telegramId);
+      formData.append('caption', 'La tua firma è stata generata. Per favore, inviala qui in chat per confermarla.');
       
-      // Notifica admin se specificato
+      // Aggiungi il file come buffer
+      formData.append('photo', imageBuffer, {
+        filename: `firma_${telegramId}_${Date.now()}.png`,
+        contentType: 'image/png'
+      });
+      
+      // Invia la foto usando FormData
+      const response = await axios.post(
+        `https://api.telegram.org/bot${botToken}/sendPhoto`, 
+        formData, 
+        {
+          headers: {
+            ...formData.getHeaders(),
+          }
+        }
+      );
+      
+      console.log('Risposta da Telegram:', response.data);
+      
+      // Notifica l'admin se specificato
       if (notifyAdmin && notifyAdmin !== telegramId) {
         try {
-          const adminResponse = await axios.post(
-            `https://api.telegram.org/bot${botToken}/sendPhoto`,
+          // Prepara FormData per l'admin
+          const adminFormData = new FormData();
+          adminFormData.append('chat_id', notifyAdmin);
+          adminFormData.append('caption', `Nuova firma ricevuta dall'utente ${telegramId}`);
+          
+          // Aggiungi il file come buffer
+          adminFormData.append('photo', imageBuffer, {
+            filename: `firma_${telegramId}_${Date.now()}.png`,
+            contentType: 'image/png'
+          });
+          
+          // Invia la foto all'admin
+          await axios.post(
+            `https://api.telegram.org/bot${botToken}/sendPhoto`, 
+            adminFormData, 
             {
-              chat_id: notifyAdmin,
-              photo: imageUrl,
-              caption: `Nuova firma ricevuta dall'utente ${telegramId}`
+              headers: {
+                ...adminFormData.getHeaders(),
+              }
             }
           );
-          
-          console.log('Risposta da Telegram (admin):', adminResponse.data);
         } catch (adminError) {
           console.error('Errore invio a admin:', adminError.message);
-          // Continuiamo anche se la notifica all'admin fallisce
+          // Non blocchiamo il flusso se la notifica all'admin fallisce
         }
       }
       
       return res.status(200).json({ 
         success: true, 
-        message: 'Firma inviata con successo. Controlla i messaggi nel bot Telegram.',
-        imageUrl: imageUrl
+        message: 'Firma inviata con successo. Controlla i messaggi nel bot Telegram.'
       });
     } catch (telegramError) {
       console.error('Errore API Telegram:', telegramError.message);
       if (telegramError.response) {
         console.error('Dettagli errore:', telegramError.response.data);
       }
-      
-      // Fallback: restituisci comunque l'immagine al client
-      return res.status(200).json({ 
-        success: true, 
-        message: 'Firma ricevuta. Usa l\'immagine mostrata e inviala al bot.',
-        error: telegramError.message,
-        image: signatureData
-      });
+      throw telegramError;
     }
   } catch (error) {
     console.error('Errore completo:', error);
