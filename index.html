@@ -13,7 +13,11 @@
             flex-direction: column;
             align-items: center;
             background-color: #f5f5f5;
-            touch-action: manipulation;
+            touch-action: none;
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+            height: 100%;
         }
         .container {
             max-width: 600px;
@@ -22,6 +26,8 @@
             padding: 20px;
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow-y: auto;
+            max-height: 90vh;
         }
         h1 {
             color: #2c3e50;
@@ -57,6 +63,14 @@
             cursor: pointer;
             font-size: 16px;
             font-weight: 500;
+            flex-grow: 1;
+            margin: 0 5px;
+        }
+        button:first-child {
+            margin-left: 0;
+        }
+        button:last-child {
+            margin-right: 0;
         }
         button:hover {
             background-color: #2980b9;
@@ -127,47 +141,6 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        .signature-image {
-            max-width: 100%;
-            margin: 15px 0;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            display: none;
-        }
-        .download-instructions {
-            background-color: #d1ecf1;
-            color: #0c5460;
-            padding: 10px;
-            border-radius: 5px;
-            margin-top: 15px;
-            display: none;
-        }
-        .success-message {
-            background-color: #d4edda;
-            color: #155724;
-            padding: 15px;
-            border-radius: 5px;
-            margin-top: 15px;
-            text-align: center;
-            font-size: 16px;
-            font-weight: 500;
-            display: none;
-        }
-        .telegram-link {
-            margin-top: 15px;
-            text-align: center;
-            display: none;
-        }
-        .telegram-button {
-            display: inline-block;
-            background-color: #0088cc;
-            color: white;
-            padding: 12px 20px;
-            text-decoration: none;
-            border-radius: 5px;
-            font-weight: 500;
-            margin-top: 10px;
-        }
     </style>
 </head>
 <body>
@@ -183,36 +156,9 @@
         <div class="buttons">
             <button id="clear">Cancella</button>
             <button id="save">Invia Firma</button>
-            <button id="debug" style="background-color: #9b59b6;">Test API</button>
         </div>
         <div class="loader" id="loader"></div>
         <div class="status" id="status"></div>
-        
-        <!-- Successo -->
-        <div id="success-message" class="success-message">
-            <p>✅ La tua firma è stata inviata con successo!</p>
-            <p>Controlla i messaggi sul tuo Telegram.</p>
-        </div>
-        
-        <!-- Contenitore per immagine della firma (fallback) -->
-        <img id="signature-image" class="signature-image" alt="La tua firma" />
-        
-        <!-- Istruzioni per il download (fallback) -->
-        <div id="download-instructions" class="download-instructions">
-            <p><strong>Istruzioni per uso manuale:</strong></p>
-            <ol>
-                <li>Tieni premuto sull'immagine qui sopra</li>
-                <li>Seleziona "Salva immagine"</li>
-                <li>Invia l'immagine salvata al bot Telegram</li>
-            </ol>
-        </div>
-        
-        <!-- Link per aprire Telegram -->
-        <div id="telegram-link" class="telegram-link">
-            <a href="https://t.me/" class="telegram-button" id="open-telegram">
-                Apri Telegram
-            </a>
-        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.5/dist/signature_pad.umd.min.js"></script>
@@ -232,11 +178,13 @@
 
         // Inizializzazione al caricamento della pagina
         document.addEventListener('DOMContentLoaded', function() {
-            // Previeni lo zoom su dispositivi mobili
+            // Previeni lo scroll su tutta la pagina
             document.addEventListener('touchmove', function(e) {
-                if (e.touches.length > 1) {
-                    e.preventDefault();
-                }
+                e.preventDefault();
+            }, { passive: false });
+            
+            document.addEventListener('scroll', function(e) {
+                e.preventDefault();
             }, { passive: false });
 
             const canvas = document.getElementById('signature-pad');
@@ -245,11 +193,6 @@
             const loaderDiv = document.getElementById('loader');
             const saveButton = document.getElementById('save');
             const clearButton = document.getElementById('clear');
-            const signatureImage = document.getElementById('signature-image');
-            const downloadInstructions = document.getElementById('download-instructions');
-            const successMessage = document.getElementById('success-message');
-            const telegramLink = document.getElementById('telegram-link');
-            const openTelegramButton = document.getElementById('open-telegram');
             
             const params = getUrlParams();
             
@@ -258,13 +201,6 @@
             let cognome = params.cognome || '';
             let botToken = params.token || '';
             let adminId = params.admin || '';
-            
-            // Configura il link a Telegram
-            if (telegramId) {
-                // Aggiorna l'href del link a Telegram per aprire la chat con il bot
-                const botUsername = botToken ? botToken.split(':')[0] : 'your_bot';
-                openTelegramButton.href = `https://t.me/${botUsername}`;
-            }
             
             // Verifica parametri obbligatori
             if (!telegramId || !botToken) {
@@ -278,7 +214,7 @@
             
             // Mostra informazioni utente
             if (nome && cognome) {
-                userInfoDiv.textContent = `Utente: ${nome} ${cognome}${telegramId ? ` (ID: ${telegramId})` : ''}`;
+                userInfoDiv.textContent = `Utente: ${nome} ${cognome}`;
             } else {
                 userInfoDiv.textContent = 'Informazioni utente non disponibili';
                 showStatus('Nome e cognome mancanti. Potrebbero esserci problemi.', 'warning');
@@ -304,10 +240,6 @@
             clearButton.addEventListener('click', function() {
                 signaturePad.clear();
                 statusDiv.style.display = 'none';
-                signatureImage.style.display = 'none';
-                downloadInstructions.style.display = 'none';
-                successMessage.style.display = 'none';
-                telegramLink.style.display = 'none';
             });
             
             // Bottone per salvare e inviare
@@ -324,10 +256,6 @@
                 // Mostra il caricamento
                 loaderDiv.style.display = 'block';
                 statusDiv.style.display = 'none';
-                signatureImage.style.display = 'none';
-                downloadInstructions.style.display = 'none';
-                successMessage.style.display = 'none';
-                telegramLink.style.display = 'none';
                 
                 try {
                     // Ottieni la firma come immagine base64
@@ -362,24 +290,16 @@
                     loaderDiv.style.display = 'none';
                     
                     if (result.success) {
-                        // Se l'immagine è stata inviata con successo, mostra il messaggio di successo
-                        // e il link per aprire Telegram
-                        successMessage.style.display = 'block';
-                        telegramLink.style.display = 'block';
+                        showStatus('✅ Firma inviata con successo! La pagina si chiuderà automaticamente.', 'success');
                         
-                        // Chiude la webapp Telegram dopo 3 secondi se disponibile
-                        if (window.Telegram && window.Telegram.WebApp) {
-                            setTimeout(() => {
+                        // Chiude la webapp Telegram dopo 2 secondi
+                        setTimeout(() => {
+                            if (window.Telegram && window.Telegram.WebApp) {
                                 window.Telegram.WebApp.close();
-                            }, 3000);
-                        }
-                        
-                        // Se c'è stato un errore nel backend ma abbiamo ricevuto un'immagine (fallback)
-                        if (result.image) {
-                            signatureImage.src = result.image;
-                            signatureImage.style.display = 'block';
-                            downloadInstructions.style.display = 'block';
-                        }
+                            } else {
+                                window.close();
+                            }
+                        }, 2000);
                     } else {
                         throw new Error(result.message || 'Errore nella risposta dal server');
                     }
@@ -388,58 +308,9 @@
                     loaderDiv.style.display = 'none';
                     showStatus(`❌ Errore: ${error.message || 'Impossibile inviare la firma'}. Riprova.`, 'error');
                     
-                    // Mostra l'immagine come fallback se c'è stato un errore
-                    signatureImage.src = signaturePad.toDataURL('image/png', 1.0);
-                    signatureImage.style.display = 'block';
-                    downloadInstructions.style.display = 'block';
-                }
-                
-                // Riabilita i bottoni
-                saveButton.disabled = false;
-                clearButton.disabled = false;
-            });
-            
-            // Bottone di debug
-            document.getElementById('debug').addEventListener('click', async function() {
-                try {
-                    showStatus('Testando la connessione API...', 'warning');
-                    
-                    // Testa prima l'endpoint di test
-                    const testResponse = await fetch('/api/test', {
-                        method: 'GET'
-                    });
-                    
-                    const testResult = await testResponse.json();
-                    console.log('Risposta del test API:', testResult);
-                    
-                    showStatus(`Test API: ${JSON.stringify(testResult)}`, 'success');
-                    
-                    // Prova anche a invocare l'API di firma con dati minimi
-                    const signatureResponse = await fetch('/api/signature', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            test: true,
-                            telegramId: 'test',
-                            signatureData: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
-                            botToken: 'test'
-                        })
-                    });
-                    
-                    if (signatureResponse.ok) {
-                        const signatureResult = await signatureResponse.json();
-                        console.log('Risposta dall\'API di firma:', signatureResult);
-                        showStatus(`API firma risponde: ${JSON.stringify(signatureResult)}`, 'success');
-                    } else {
-                        console.error('Errore risposta API firma:', signatureResponse.status);
-                        showStatus(`Errore API firma: ${signatureResponse.status}`, 'error');
-                    }
-                    
-                } catch (error) {
-                    console.error('Errore test API:', error);
-                    showStatus(`Errore test: ${error.message}`, 'error');
+                    // Riabilita i bottoni
+                    saveButton.disabled = false;
+                    clearButton.disabled = false;
                 }
             });
             
@@ -475,14 +346,14 @@
                 resizeCanvas();
             });
             
-            // Evita il bounce della pagina su iOS durante il disegno
+            // Gestione specifica per il canvas della firma
             canvas.addEventListener('touchstart', function(e) {
-                e.preventDefault();
-            }, { passive: false });
+                e.stopPropagation();
+            }, false);
             
             canvas.addEventListener('touchmove', function(e) {
-                e.preventDefault();
-            }, { passive: false });
+                e.stopPropagation();
+            }, false);
         });
     </script>
 </body>
