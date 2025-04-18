@@ -33,43 +33,23 @@ module.exports = async (req, res) => {
     // Log per debug
     console.log(`Invio firma a utente ${telegramId} e admin ${notifyAdmin || 'nessuno'}`);
     
-    // Usa direttamente l'URL della firma per inviarla
     try {
-      // Invia la foto all'utente tramite Telegram API
-      const userResponse = await axios.post(
-        `https://api.telegram.org/bot${botToken}/sendPhoto`,
+      // Per prima cosa invia un messaggio normale all'utente
+      await axios.post(
+        `https://api.telegram.org/bot${botToken}/sendMessage`,
         {
           chat_id: telegramId,
-          photo: signatureData,
-          caption: 'La tua firma è stata generata. Per favore, invia questa immagine al bot per confermarla.'
+          text: '✏️ La tua firma è stata ricevuta. Ti invierò un\'immagine che potrai usare per confermarla nel bot.'
         }
       );
       
-      console.log('Risposta da Telegram (utente):', userResponse.data);
-      
-      // Notifica admin se specificato
-      if (notifyAdmin && notifyAdmin !== telegramId) {
-        try {
-          const adminResponse = await axios.post(
-            `https://api.telegram.org/bot${botToken}/sendPhoto`,
-            {
-              chat_id: notifyAdmin,
-              photo: signatureData,
-              caption: `Nuova firma ricevuta dall'utente ${telegramId}`
-            }
-          );
-          
-          console.log('Risposta da Telegram (admin):', adminResponse.data);
-        } catch (adminError) {
-          console.error('Errore invio a admin:', adminError.message);
-          // Continuiamo anche se la notifica all'admin fallisce
-        }
-      }
-      
+      // Metodo 1: Invia usando un URL di file temporaneo (sarà visualizzato nel browser)
       return res.status(200).json({ 
         success: true, 
-        message: 'Firma inviata con successo. Controlla i messaggi nel bot Telegram.'
+        message: 'Firma ricevuta! Salva l\'immagine visualizzata ora nel browser e inviala al bot.',
+        image: signatureData // L'immagine base64 verrà visualizzata nel browser
       });
+      
     } catch (telegramError) {
       console.error('Errore API Telegram:', telegramError.message);
       if (telegramError.response) {

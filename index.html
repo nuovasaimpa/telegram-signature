@@ -127,6 +127,21 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        .signature-image {
+            max-width: 100%;
+            margin: 15px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            display: none;
+        }
+        .download-instructions {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 15px;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -141,11 +156,24 @@
         </div>
         <div class="buttons">
             <button id="clear">Cancella</button>
-            <button id="debug" style="background-color: #9b59b6;">Test API</button>
             <button id="save">Invia Firma</button>
+            <button id="debug" style="background-color: #9b59b6;">Test API</button>
         </div>
         <div class="loader" id="loader"></div>
         <div class="status" id="status"></div>
+        
+        <!-- Contenitore per immagine della firma -->
+        <img id="signature-image" class="signature-image" alt="La tua firma" />
+        
+        <!-- Istruzioni per il download -->
+        <div id="download-instructions" class="download-instructions">
+            <p><strong>Istruzioni:</strong></p>
+            <ol>
+                <li>Tieni premuto sull'immagine qui sopra</li>
+                <li>Seleziona "Salva immagine"</li>
+                <li>Invia l'immagine salvata al bot Telegram</li>
+            </ol>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.5/dist/signature_pad.umd.min.js"></script>
@@ -178,6 +206,8 @@
             const loaderDiv = document.getElementById('loader');
             const saveButton = document.getElementById('save');
             const clearButton = document.getElementById('clear');
+            const signatureImage = document.getElementById('signature-image');
+            const downloadInstructions = document.getElementById('download-instructions');
             
             const params = getUrlParams();
             
@@ -194,7 +224,7 @@
                 return;
             }
             
-            // URL dell'API - questo è l'URL della tua API su Vercel
+            // URL dell'API - usa un URL relativo
             const API_URL = '/api/signature';
             
             // Mostra informazioni utente
@@ -225,6 +255,8 @@
             clearButton.addEventListener('click', function() {
                 signaturePad.clear();
                 statusDiv.style.display = 'none';
+                signatureImage.style.display = 'none';
+                downloadInstructions.style.display = 'none';
             });
             
             // Bottone per salvare e inviare
@@ -241,6 +273,8 @@
                 // Mostra il caricamento
                 loaderDiv.style.display = 'block';
                 statusDiv.style.display = 'none';
+                signatureImage.style.display = 'none';
+                downloadInstructions.style.display = 'none';
                 
                 try {
                     // Ottieni la firma come immagine base64
@@ -275,13 +309,29 @@
                     loaderDiv.style.display = 'none';
                     
                     if (result.success) {
-                        showStatus('✅ Firma inviata con successo! Controlla i messaggi nel bot Telegram.', 'success');
+                        showStatus('✅ Firma ricevuta con successo!', 'success');
                         
-                        // Chiude la webapp Telegram dopo 3 secondi
-                        if (window.Telegram && window.Telegram.WebApp) {
-                            setTimeout(() => {
-                                window.Telegram.WebApp.close();
-                            }, 3000);
+                        // Mostra l'immagine della firma e le istruzioni per il download
+                        signatureImage.src = dataUrl;
+                        signatureImage.style.display = 'block';
+                        downloadInstructions.style.display = 'block';
+                        
+                        // Invia messaggi a Telegram notificando l'admin (manuale)
+                        try {
+                            // Notifica admin (se disponibile)
+                            if (adminId) {
+                                await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        chat_id: adminId,
+                                        text: `🖋️ Nuova firma creata dall'utente ${nome} ${cognome} (ID: ${telegramId}). L'immagine verrà inviata direttamente dall'utente.`
+                                    })
+                                });
+                            }
+                        } catch (notifyError) {
+                            console.error('Errore notifica admin:', notifyError);
+                            // Non interrompe il flusso se la notifica fallisce
                         }
                     } else {
                         throw new Error(result.message || 'Errore nella risposta dal server');
@@ -290,10 +340,54 @@
                     console.error('Errore nell\'invio della firma:', error);
                     loaderDiv.style.display = 'none';
                     showStatus(`❌ Errore: ${error.message || 'Impossibile inviare la firma'}. Riprova.`, 'error');
+                }
+                
+                // Riabilita i bottoni
+                saveButton.disabled = false;
+                clearButton.disabled = false;
+            });
+            
+            // Bottone di debug
+            document.getElementById('debug').addEventListener('click', async function() {
+                try {
+                    showStatus('Testando la connessione API...', 'warning');
                     
-                    // Riabilita i bottoni
-                    saveButton.disabled = false;
-                    clearButton.disabled = false;
+                    // Testa prima l'endpoint di test
+                    const testResponse = await fetch('/api/test', {
+                        method: 'GET'
+                    });
+                    
+                    const testResult = await testResponse.json();
+                    console.log('Risposta del test API:', testResult);
+                    
+                    showStatus(`Test API: ${JSON.stringify(testResult)}`, 'success');
+                    
+                    // Prova anche a invocare l'API di firma con dati minimi
+                    const signatureResponse = await fetch('/api/signature', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            test: true,
+                            telegramId: 'test',
+                            signatureData: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+                            botToken: 'test'
+                        })
+                    });
+                    
+                    if (signatureResponse.ok) {
+                        const signatureResult = await signatureResponse.json();
+                        console.log('Risposta dall\'API di firma:', signatureResult);
+                        showStatus(`API firma risponde: ${JSON.stringify(signatureResult)}`, 'success');
+                    } else {
+                        console.error('Errore risposta API firma:', signatureResponse.status);
+                        showStatus(`Errore API firma: ${signatureResponse.status}`, 'error');
+                    }
+                    
+                } catch (error) {
+                    console.error('Errore test API:', error);
+                    showStatus(`Errore test: ${error.message}`, 'error');
                 }
             });
             
@@ -339,50 +433,5 @@
             }, { passive: false });
         });
     </script>
-    <script>
-        // Aggiungi questo al documento esistente
-        document.getElementById('debug').addEventListener('click', async function() {
-          try {
-            showStatus('Testando la connessione API...', 'warning');
-            
-            // Testa prima l'endpoint di test
-            const testResponse = await fetch('/api/test', {
-              method: 'GET'
-            });
-            
-            const testResult = await testResponse.json();
-            console.log('Risposta del test API:', testResult);
-            
-            showStatus(`Test API: ${JSON.stringify(testResult)}`, 'success');
-            
-            // Prova anche a invocare l'API di firma con dati minimi
-            const signatureResponse = await fetch('/api/signature', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                test: true,
-                telegramId: 'test',
-                signatureData: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
-                botToken: 'test'
-              })
-            });
-            
-            if (signatureResponse.ok) {
-              const signatureResult = await signatureResponse.json();
-              console.log('Risposta dall\'API di firma:', signatureResult);
-              showStatus(`API firma risponde: ${JSON.stringify(signatureResult)}`, 'success');
-            } else {
-              console.error('Errore risposta API firma:', signatureResponse.status);
-              showStatus(`Errore API firma: ${signatureResponse.status}`, 'error');
-            }
-            
-          } catch (error) {
-            console.error('Errore test API:', error);
-            showStatus(`Errore test: ${error.message}`, 'error');
-          }
-        });
-      </script>
 </body>
 </html>
