@@ -30,32 +30,72 @@ module.exports = async (req, res) => {
       });
     }
     
+    // Estrai la parte base64 dalla data URL
+    const base64Data = signatureData.split(',')[1];
+    
     // Log per debug
     console.log(`Invio firma a utente ${telegramId} e admin ${notifyAdmin || 'nessuno'}`);
     
     try {
-      // Per prima cosa invia un messaggio normale all'utente
-      await axios.post(
-        `https://api.telegram.org/bot${botToken}/sendMessage`,
+      // Ottieni l'URL del deployment corrente
+      const host = req.headers.host || 'telegram-signature.vercel.app';
+      const protocol = req.headers['x-forwarded-proto'] || 'https';
+      const baseUrl = `${protocol}://${host}`;
+      
+      // Crea un URL temporaneo per l'immagine
+      const imageUrl = `${baseUrl}/api/image?image=${encodeURIComponent(base64Data)}`;
+      
+      console.log('URL immagine generato:', imageUrl);
+      
+      // Invia l'immagine all'utente tramite Telegram API
+      const userResponse = await axios.post(
+        `https://api.telegram.org/bot${botToken}/sendPhoto`,
         {
           chat_id: telegramId,
-          text: '✏️ La tua firma è stata ricevuta. Ti invierò un\'immagine che potrai usare per confermarla nel bot.'
+          photo: imageUrl,
+          caption: 'La tua firma è stata generata. Per favore, invia questa immagine al bot per confermarla.'
         }
       );
       
-      // Metodo 1: Invia usando un URL di file temporaneo (sarà visualizzato nel browser)
+      console.log('Risposta da Telegram (utente):', userResponse.data);
+      
+      // Notifica admin se specificato
+      if (notifyAdmin && notifyAdmin !== telegramId) {
+        try {
+          const adminResponse = await axios.post(
+            `https://api.telegram.org/bot${botToken}/sendPhoto`,
+            {
+              chat_id: notifyAdmin,
+              photo: imageUrl,
+              caption: `Nuova firma ricevuta dall'utente ${telegramId}`
+            }
+          );
+          
+          console.log('Risposta da Telegram (admin):', adminResponse.data);
+        } catch (adminError) {
+          console.error('Errore invio a admin:', adminError.message);
+          // Continuiamo anche se la notifica all'admin fallisce
+        }
+      }
+      
       return res.status(200).json({ 
         success: true, 
-        message: 'Firma ricevuta! Salva l\'immagine visualizzata ora nel browser e inviala al bot.',
-        image: signatureData // L'immagine base64 verrà visualizzata nel browser
+        message: 'Firma inviata con successo. Controlla i messaggi nel bot Telegram.',
+        imageUrl: imageUrl
       });
-      
     } catch (telegramError) {
       console.error('Errore API Telegram:', telegramError.message);
       if (telegramError.response) {
         console.error('Dettagli errore:', telegramError.response.data);
       }
-      throw new Error(`Errore nell'invio a Telegram: ${telegramError.message}`);
+      
+      // Fallback: restituisci comunque l'immagine al client
+      return res.status(200).json({ 
+        success: true, 
+        message: 'Firma ricevuta. Usa l\'immagine mostrata e inviala al bot.',
+        error: telegramError.message,
+        image: signatureData
+      });
     }
   } catch (error) {
     console.error('Errore completo:', error);
