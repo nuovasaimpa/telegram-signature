@@ -52,7 +52,9 @@ module.exports = async (req, res) => {
       // Prepara FormData per l'invio del file
       const formData = new FormData();
       formData.append('chat_id', telegramId);
-      formData.append('caption', 'La tua firma è stata generata. Per favore, inviala qui in chat per confermarla.');
+      
+      // Aggiungi didascalia specifica che il bot riconoscerà
+      formData.append('caption', '[FIRMA-WEBAPP] Firma digitale generata automaticamente');
       
       // Aggiungi il file come buffer
       formData.append('photo', imageBuffer, {
@@ -79,7 +81,7 @@ module.exports = async (req, res) => {
           // Prepara FormData per l'admin
           const adminFormData = new FormData();
           adminFormData.append('chat_id', notifyAdmin);
-          adminFormData.append('caption', `Nuova firma ricevuta dall'utente ${telegramId}`);
+          adminFormData.append('caption', `[FIRMA-WEBAPP] Nuova firma ricevuta dall'utente ${telegramId}`);
           
           // Aggiungi il file come buffer
           adminFormData.append('photo', imageBuffer, {
