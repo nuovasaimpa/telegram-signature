@@ -31,17 +31,18 @@
         h1 {
             color: #2c3e50;
             text-align: center;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
+            font-size: 18px; /* Ridotto da circa 24px a 18px */
         }
         .signature-container {
             position: relative;
             width: 100%;
-            margin-bottom: 15px;
+            margin-bottom: 10px; /* Ridotto da 15px a 10px */
             border: 1px solid #ccc;
             border-radius: 5px;
             overflow: hidden;
-            /* Modificato: Aggiunto per layout verticale */
-            height: 400px;
+            /* Modificato: Aumentata altezza */
+            height: 450px; /* Aumentato da 400px a 450px */
             display: flex;
             flex-direction: column;
         }
@@ -176,8 +177,7 @@
         <div class="user-info" id="user-info">
             Caricamento informazioni utente...
         </div>
-        <p class="instruction">Disegna la tua firma nel campo sottostante</p>
-        <p class="orientation-note">📱 Ruota il dispositivo in orizzontale per avere più spazio</p>
+        <p class="instruction">Disegna la tua firma nel campo</p>
         <div class="signature-container">
             <div class="signature-content">
                 <div class="vertical-label">FIRMA QUI</div>
@@ -349,7 +349,7 @@
                             } else {
                                 window.close();
                             }
-                        }, 2000);
+                        }, 1000); // Ridotto da 2000ms a 1000ms
                     } else {
                         throw new Error(result.message || 'Errore nella risposta dal server');
                     }
