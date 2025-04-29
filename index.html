@@ -13,7 +13,6 @@
             flex-direction: column;
             align-items: center;
             background-color: #f5f5f5;
-            /* Rimuovi touch-action: none e overflow: hidden dal body */
             position: relative;
             width: 100%;
             height: 100%;
@@ -40,14 +39,34 @@
             margin-bottom: 15px;
             border: 1px solid #ccc;
             border-radius: 5px;
-            /* Importante: aggiungi overflow: hidden */
             overflow: hidden;
+            /* Modificato: Aggiunto per layout verticale */
+            height: 400px;
+            display: flex;
+            flex-direction: column;
+        }
+        .vertical-label {
+            writing-mode: vertical-lr;
+            transform: rotate(180deg);
+            text-align: center;
+            padding: 10px 5px;
+            background-color: #f8f9fa;
+            color: #495057;
+            font-weight: 500;
+            border-right: 1px solid #dee2e6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .signature-content {
+            display: flex;
+            flex-grow: 1;
+            height: 100%;
         }
         #signature-pad {
-            /* Applicare touch-action solo al canvas */
             touch-action: none;
-            width: 100%;
-            height: 200px;
+            flex-grow: 1;
+            height: 100%;
             background-color: white;
             display: block;
         }
@@ -139,6 +158,12 @@
             margin: 10px auto;
             display: none;
         }
+        .orientation-note {
+            text-align: center;
+            color: #e67e22;
+            font-weight: 500;
+            margin-bottom: 10px;
+        }
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
@@ -152,8 +177,12 @@
             Caricamento informazioni utente...
         </div>
         <p class="instruction">Disegna la tua firma nel campo sottostante</p>
+        <p class="orientation-note">📱 Ruota il dispositivo in orizzontale per avere più spazio</p>
         <div class="signature-container">
-            <canvas id="signature-pad"></canvas>
+            <div class="signature-content">
+                <div class="vertical-label">FIRMA QUI</div>
+                <canvas id="signature-pad"></canvas>
+            </div>
         </div>
         <div class="buttons">
             <button id="clear">Cancella</button>
@@ -180,17 +209,6 @@
 
         // Inizializzazione al caricamento della pagina
         document.addEventListener('DOMContentLoaded', function() {
-            // Rimuovi questi event listener globali che impediscono lo scroll
-            /* 
-            document.addEventListener('touchmove', function(e) {
-                e.preventDefault();
-            }, { passive: false });
-            
-            document.addEventListener('scroll', function(e) {
-                e.preventDefault();
-            }, { passive: false });
-            */
-
             const canvas = document.getElementById('signature-pad');
             const userInfoDiv = document.getElementById('user-info');
             const statusDiv = document.getElementById('status');
@@ -228,14 +246,14 @@
             // Imposta dimensioni del canvas all'inizio
             resizeCanvas();
             
-            // Inizializza SignaturePad con opzioni ottimizzate
+            // Inizializza SignaturePad con opzioni ottimizzate e tratto più sottile
             const signaturePad = new SignaturePad(canvas, {
-                minWidth: 1.5,
-                maxWidth: 3.5,
+                minWidth: 0.5,  // Modificato: ridotto da 1.5 a 0.5 per tratto più sottile
+                maxWidth: 2.0,  // Modificato: ridotto da 3.5 a 2.0 per tratto più sottile
                 penColor: "black",
                 backgroundColor: "white",
-                throttle: 16, // Limita gli eventi a circa 60fps
-                velocityFilterWeight: 0.5 // Regola il filtro di velocità
+                throttle: 16,
+                velocityFilterWeight: 0.5
             });
             
             // Esponi il signaturePad come proprietà del canvas per il ridimensionamento
@@ -246,6 +264,30 @@
                 signaturePad.clear();
                 statusDiv.style.display = 'none';
             });
+
+            // Funzione per ruotare l'immagine della firma
+            function rotateSignature(dataUrl) {
+                return new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.onload = function() {
+                        const canvas = document.createElement('canvas');
+                        // Invertiamo larghezza e altezza per la rotazione
+                        canvas.width = img.height;
+                        canvas.height = img.width;
+                        
+                        const ctx = canvas.getContext('2d');
+                        // Rotazione di 90 gradi orari
+                        ctx.translate(canvas.width/2, canvas.height/2);
+                        ctx.rotate(Math.PI / 2); // 90 gradi in radianti
+                        ctx.drawImage(img, -img.width/2, -img.height/2);
+                        
+                        // Ritorna la nuova immagine ruotata come data URL
+                        resolve(canvas.toDataURL('image/png', 1.0));
+                    };
+                    img.onerror = reject;
+                    img.src = dataUrl;
+                });
+            }
             
             // Bottone per salvare e inviare
             saveButton.addEventListener('click', async function() {
@@ -264,10 +306,13 @@
                 
                 try {
                     // Ottieni la firma come immagine base64
-                    const dataUrl = signaturePad.toDataURL('image/png', 1.0);
+                    const originalDataUrl = signaturePad.toDataURL('image/png', 1.0);
+                    
+                    // Rotazione della firma per orientarla correttamente
+                    const dataUrl = await rotateSignature(originalDataUrl);
                     
                     // Log per debug (solo su console)
-                    console.log('Invio firma a', telegramId);
+                    console.log('Invio firma ruotata a', telegramId);
                     
                     // Invia all'API
                     const response = await fetch(API_URL, {
@@ -331,10 +376,11 @@
                 const container = canvas.parentElement;
                 const ratio = Math.max(window.devicePixelRatio || 1, 1);
                 
+                // Impostiamo le dimensioni del canvas per il layout verticale
                 canvas.width = container.offsetWidth * ratio;
-                canvas.height = 200 * ratio;
+                canvas.height = container.offsetHeight * ratio;
                 canvas.style.width = `${container.offsetWidth}px`;
-                canvas.style.height = "200px";
+                canvas.style.height = `${container.offsetHeight}px`;
                 
                 // Scale the context
                 const ctx = canvas.getContext("2d");
